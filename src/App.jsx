@@ -142,7 +142,12 @@ const ImageUploader = ({ value, onChange, label = "Foto Produk" }) => {
   );
 };
 
-const FloatingCart = ({ cart, onClick }) => {
+const LabelBadge = ({ label }) => {
+  if (!label) return null;
+  if (label === "Best Seller") return <Badge variant="best">⭐ Best Seller</Badge>;
+  if (label === "Rekomendasi") return <Badge variant="rec">✓ Rekomendasi</Badge>;
+  return <Badge variant="default">{label}</Badge>;
+};
   const count = cart.reduce((s, i) => s + i.qty, 0);
   if (count === 0) return null;
   return (
@@ -232,7 +237,7 @@ const HomePage = ({ products, onCategory, onProduct, cart, onCart, heroBg, loadi
                 <div className="flex-1 p-4 flex flex-col justify-center">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-stone-800">{p.name}</span>
-                    <Badge variant="best">⭐ Best Seller</Badge>
+                    <LabelBadge label={p.label} />
                   </div>
                   <p className="text-xs text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.recommendation}</p>
                   <span className={`font-bold ${p.is_sold_out ? "text-stone-400 line-through" : "text-amber-800"}`}>{fmtPrice(p.price)}</span>
@@ -251,20 +256,39 @@ const HomePage = ({ products, onCategory, onProduct, cart, onCart, heroBg, loadi
 const CatalogPage = ({ products, category, onProduct, onBack, cart, onCart, onHome }) => {
   const filtered = products.filter(p => p.category === category);
   const title = category === "special" ? "Special Selection" : "Classic Selection";
+  const isSpecial = category === "special";
   return (
     <PageShell title={title} onBack={onBack} onHome={onHome}>
-      <div className="px-5 py-5">
-        {category === "special" && <div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-2xl mb-5 border border-amber-100">ℹ️ Pemesanan Special Selection minimal H-5 sebelum tanggal ambil</div>}
+      <div className={`px-5 pt-5 pb-3 ${isSpecial ? "bg-gradient-to-b from-purple-50 to-stone-50" : "bg-gradient-to-b from-amber-50 to-stone-50"}`}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-3xl">{isSpecial ? "🎉" : "🍩"}</span>
+          <div>
+            <h2 className="text-lg font-bold text-stone-800">{title}</h2>
+            <p className="text-xs text-stone-400">{isSpecial ? "Untuk momen spesial & perayaan" : "Pilihan harian favorit"}</p>
+          </div>
+        </div>
+        {isSpecial && <div className="bg-white/70 backdrop-blur-sm text-purple-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-purple-100 mt-3">ℹ️ Minimal pemesanan H-5 sebelum tanggal ambil</div>}
+      </div>
+      <div className="px-5 py-4">
         {filtered.length === 0 ? <div className="text-center py-20 text-stone-300"><p className="text-5xl mb-4">🍰</p><p className="font-medium text-stone-400">Produk belum tersedia</p></div> : (
           <div className="grid grid-cols-2 gap-3">
             {filtered.map(p => (
-              <button key={p.id} onClick={() => !p.is_sold_out && onProduct(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left group ${p.is_sold_out ? "opacity-60 cursor-not-allowed" : "hover:shadow-md hover:border-amber-200"} transition-all`}>
-                <div className="overflow-hidden relative"><div className={`${p.is_sold_out ? "" : "group-hover:scale-105"} transition-transform duration-500`}><ProductImage name={p.name} color={p.color} img={p.image_url} size="md" /></div>{p.is_sold_out && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">Stok Habis</span></div>}</div>
-                <div className="p-3.5">
-                  <div className="flex items-center gap-1 mb-1.5 flex-wrap"><span className="font-bold text-sm text-stone-800">{p.name}</span>{p.label === "Best Seller" && <Badge variant="best">⭐</Badge>}{p.label === "Rekomendasi" && <Badge variant="rec">✓</Badge>}</div>
-                  {p.portion && <p className="text-[11px] text-stone-400 mb-1">👥 {p.portion}</p>}
-                  <p className="text-[11px] text-stone-400 mb-2 line-clamp-1">{p.recommendation}</p>
-                  <p className={`font-bold text-sm ${p.is_sold_out ? "text-stone-400 line-through" : "text-amber-800"}`}>{fmtPrice(p.price)}</p>
+              <button key={p.id} onClick={() => !p.is_sold_out && onProduct(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"} transition-all duration-300`}>
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full">
+                  <div className="overflow-hidden relative">
+                    <div className={`${p.is_sold_out ? "" : "group-hover:scale-110"} transition-transform duration-700`}><ProductImage name={p.name} color={p.color} img={p.image_url} size="md" /></div>
+                    {p.is_sold_out && <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}
+                    {p.label && !p.is_sold_out && <div className="absolute top-2 left-2"><LabelBadge label={p.label} /></div>}
+                  </div>
+                  <div className="p-3.5">
+                    <p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>
+                    {p.portion && <p className="text-[10px] text-stone-400 mb-1">👥 {p.portion}</p>}
+                    <p className="text-[10px] text-stone-400 mb-2.5 line-clamp-2 leading-relaxed">{p.recommendation}</p>
+                    <div className="flex items-center justify-between">
+                      <p className={`font-bold text-sm ${p.is_sold_out ? "text-stone-400 line-through" : "text-amber-800"}`}>{fmtPrice(p.price)}</p>
+                      {!p.is_sold_out && <span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}
+                    </div>
+                  </div>
                 </div>
               </button>
             ))}
@@ -287,40 +311,76 @@ const ProductPage = ({ product, onBack, onAddCart, cart, onCart, onHome }) => {
   const total = unitPrice * qty;
 
   return (
-    <PageShell title={product.name} onBack={onBack} onHome={onHome}>
-      <ProductImage name={product.name} color={product.color} img={product.image_url} size="lg" />
-      <div className="px-5 py-5">
-        <div className="flex items-center gap-2 mb-2"><h2 className="text-xl font-bold text-stone-800">{product.name}</h2>{product.label === "Best Seller" && <Badge variant="best">⭐ Best Seller</Badge>}{product.label === "Rekomendasi" && <Badge variant="rec">✓ Rekomendasi</Badge>}</div>
-        <p className="text-sm text-stone-500 mb-2 leading-relaxed">{product.description}</p>
-        {product.portion && <p className="text-xs text-stone-400 mb-3">👥 Estimasi: {product.portion}</p>}
-        {product.recommendation && <div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-2xl mb-5 border border-amber-100">💡 {product.recommendation}</div>}
+    <PageShell onBack={onBack} onHome={onHome}>
+      <div className="relative">
+        <ProductImage name={product.name} color={product.color} img={product.image_url} size="lg" />
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-stone-50 to-transparent" />
+      </div>
+      <div className="px-5 -mt-6 relative z-10">
+        <div className="bg-white rounded-3xl shadow-md border border-stone-100 p-5 mb-4">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h2 className="text-xl font-bold text-stone-800 mb-1">{product.name}</h2>
+              {product.portion && <p className="text-xs text-stone-400">👥 {product.portion}</p>}
+            </div>
+            <LabelBadge label={product.label} />
+          </div>
+          <p className="text-sm text-stone-500 leading-relaxed mb-3">{product.description}</p>
+          {product.recommendation && <div className="bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 text-xs px-4 py-3 rounded-xl border border-amber-100/50">💡 {product.recommendation}</div>}
+        </div>
 
         {sizes.length > 0 && (
-          <div className="mb-5"><p className="text-sm font-semibold text-stone-700 mb-2.5">Pilih Ukuran</p><div className="flex flex-col gap-2">
-            {sizes.map((s, i) => <button key={i} onClick={() => setSize(i)} className={`border-2 rounded-2xl px-4 py-3 text-left text-sm transition-all ${i === size ? "border-amber-600 bg-amber-50 font-semibold text-amber-900" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>{s.name} — {fmtPrice(product.price + s.add)}</button>)}
-          </div></div>
+          <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4">
+            <p className="text-sm font-bold text-stone-800 mb-3">📏 Pilih Ukuran</p>
+            <div className="flex flex-col gap-2">
+              {sizes.map((s, i) => (
+                <button key={i} onClick={() => setSize(i)} className={`border-2 rounded-2xl px-4 py-3.5 text-left text-sm transition-all flex items-center justify-between ${i === size ? "border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 font-semibold text-amber-900 shadow-sm" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>
+                  <span>{s.name}</span>
+                  <span className="font-bold">{fmtPrice(product.price + s.add)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
+
         {flavors.length > 0 && (
-          <div className="mb-5"><p className="text-sm font-semibold text-stone-700 mb-2.5">Pilih Rasa</p><div className="flex flex-wrap gap-2">
-            {flavors.map(f => <button key={f} onClick={() => setFlavor(f)} className={`border-2 rounded-full px-5 py-2 text-sm transition-all ${f === flavor ? "border-amber-600 bg-amber-50 font-semibold text-amber-900" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>{f}</button>)}
-          </div></div>
+          <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4">
+            <p className="text-sm font-bold text-stone-800 mb-3">🎨 Pilih Rasa</p>
+            <div className="flex flex-wrap gap-2">
+              {flavors.map(f => (
+                <button key={f} onClick={() => setFlavor(f)} className={`border-2 rounded-full px-5 py-2.5 text-sm transition-all ${f === flavor ? "border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 font-semibold text-amber-900 shadow-sm" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>{f}</button>
+              ))}
+            </div>
+          </div>
         )}
-        <div className="mb-5"><p className="text-sm font-semibold text-stone-700 mb-2.5">Jumlah</p>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4">
+          <p className="text-sm font-bold text-stone-800 mb-3">🔢 Jumlah</p>
           <div className="flex items-center gap-4">
-            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-11 h-11 rounded-full border-2 border-stone-200 flex items-center justify-center text-lg font-bold text-stone-500 hover:border-amber-400 hover:text-amber-700 transition">−</button>
-            <span className="text-xl font-bold w-8 text-center text-stone-800">{qty}</span>
-            <button onClick={() => setQty(qty + 1)} className="w-11 h-11 rounded-full border-2 border-stone-200 flex items-center justify-center text-lg font-bold text-stone-500 hover:border-amber-400 hover:text-amber-700 transition">+</button>
+            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center text-lg font-bold text-stone-500 hover:bg-amber-100 hover:text-amber-700 transition-all active:scale-90">−</button>
+            <span className="text-2xl font-bold w-10 text-center text-stone-800">{qty}</span>
+            <button onClick={() => setQty(qty + 1)} className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center text-lg font-bold text-stone-500 hover:bg-amber-100 hover:text-amber-700 transition-all active:scale-90">+</button>
           </div>
         </div>
-        <div className="mb-6">
-          <label className="text-sm font-semibold text-stone-700 mb-1.5 block">Catatan <span className="text-stone-400 font-normal text-xs">(opsional)</span></label>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4">
+          <p className="text-sm font-bold text-stone-800 mb-3">📝 Catatan <span className="text-stone-400 font-normal text-xs">(opsional)</span></p>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Tulisan di kue, request khusus, dll" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white transition" />
         </div>
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-5 mb-5 flex items-center justify-between border border-amber-100">
-          <span className="text-sm text-stone-600 font-medium">Total</span>
-          <span className="text-2xl font-bold text-amber-800">{fmtPrice(total)}</span>
+
+        <div className="bg-gradient-to-r from-amber-800 to-amber-900 rounded-3xl p-5 mb-4 flex items-center justify-between shadow-lg">
+          <div>
+            <p className="text-amber-200 text-xs mb-0.5">Total Harga</p>
+            <p className="text-2xl font-bold text-white">{fmtPrice(total)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-amber-200 text-xs mb-0.5">{qty} item</p>
+            <p className="text-amber-100 text-xs">@ {fmtPrice(unitPrice)}</p>
+          </div>
         </div>
+
         <Btn onClick={() => onAddCart({ id: product.id, name: product.name, color: product.color, img: product.image_url, size: size >= 0 ? sizes[size].name : "", flavor, qty, unitPrice, note, category: product.category })} full>🛒 Tambah ke Keranjang</Btn>
+        <div className="h-6" />
       </div>
       <FloatingCart cart={cart} onClick={onCart} />
     </PageShell>
@@ -502,7 +562,7 @@ const AdminOrders = ({ orders, onRefresh }) => {
 
 const AdminMenu = ({ products, onRefresh }) => {
   const [ed, setEd] = useState(null);
-  const [fm, setFm] = useState({ name:"", price:"", category:"classic", label:"", description:"", color:"#D4A574", image_url:"" });
+  const [fm, setFm] = useState({ name:"", price:"", category:"classic", subcategory:"", label:"", description:"", color:"#D4A574", image_url:"" });
   const [sv, setSv] = useState(false);
   const save = async () => {
     if (!fm.name || !fm.price) return; setSv(true);
@@ -518,7 +578,8 @@ const AdminMenu = ({ products, onRefresh }) => {
       <Input label="Nama" value={fm.name} onChange={e => setFm(f => ({ ...f, name: e.target.value }))} />
       <Input label="Harga" type="number" value={fm.price} onChange={e => setFm(f => ({ ...f, price: e.target.value }))} />
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category} onChange={e => setFm(f => ({ ...f, category: e.target.value }))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="classic">Classic</option><option value="special">Special</option></select></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label</label><select value={fm.label} onChange={e => setFm(f => ({ ...f, label: e.target.value }))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="">Tanpa</option><option value="Best Seller">Best Seller</option><option value="Rekomendasi">Rekomendasi</option></select></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Sub-kategori <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.subcategory||""} onChange={e => setFm(f => ({ ...f, subcategory: e.target.value }))} placeholder="Contoh: Roti Manis, Kue Kering, Pastry" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300" /></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.label} onChange={e => setFm(f => ({ ...f, label: e.target.value }))} placeholder="Contoh: Best Seller, Diskon 20%, Baru, Promo" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300" /></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Warna Placeholder</label><input type="color" value={fm.color} onChange={e => setFm(f => ({ ...f, color: e.target.value }))} className="w-12 h-10 rounded-xl border-0 cursor-pointer" /></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Deskripsi</label><textarea value={fm.description} onChange={e => setFm(f => ({ ...f, description: e.target.value }))} rows={2} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300" /></div>
       <div className="flex gap-2"><Btn onClick={save} full disabled={sv}>{sv ? "Menyimpan..." : "💾 Simpan"}</Btn><Btn onClick={() => setEd(null)} variant="ghost" full>Batal</Btn></div>
@@ -527,14 +588,14 @@ const AdminMenu = ({ products, onRefresh }) => {
 
   return (
     <div>
-      <Btn onClick={() => { setFm({ name:"", price:"", category:"classic", label:"", description:"", color:"#D4A574", image_url:"" }); setEd("new"); }} full className="mb-5">+ Tambah Produk</Btn>
+      <Btn onClick={() => { setFm({ name:"", price:"", category:"classic", subcategory:"", label:"", description:"", color:"#D4A574", image_url:"" }); setEd("new"); }} full className="mb-5">+ Tambah Produk</Btn>
       {products.map(p => (
         <div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out ? "opacity-60" : ""}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><ProductImage name={p.name} color={p.color} img={p.image_url} size="sm" /></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out && <span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}</p><p className="text-xs text-stone-400">{p.category === "special" ? "Special" : "Classic"} · {fmtPrice(p.price)}</p></div></div>
             <div className="flex gap-1">
               <button onClick={async () => { try { await dbToggleSoldOut(p.id, !p.is_sold_out); await onRefresh(); } catch {} }} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out ? "text-emerald-600 hover:bg-emerald-50" : "text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out ? "✅" : "⛔"}</button>
-              <button onClick={() => { setFm({ name:p.name, price:String(p.price), category:p.category, label:p.label||"", description:p.description||"", color:p.color||"#D4A574", image_url:p.image_url||"" }); setEd(p.id); }} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
+              <button onClick={() => { setFm({ name:p.name, price:String(p.price), category:p.category, subcategory:p.label||"", label:p.label||"", description:p.description||"", color:p.color||"#D4A574", image_url:p.image_url||"" }); setEd(p.id); }} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
               <button onClick={async () => { try { await dbDeleteProduct(p.id); await onRefresh(); } catch {} }} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button>
             </div>
           </div>
