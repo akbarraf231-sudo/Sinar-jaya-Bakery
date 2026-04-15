@@ -95,6 +95,8 @@ const FCart = ({cart,onClick}) => {
 
 const Spin = ({text="Memuat..."}) => (<div className="flex flex-col items-center justify-center py-20 text-stone-400"><div className="w-10 h-10 rounded-full animate-spin mb-4" style={{borderWidth:3,borderStyle:"solid",borderColor:"#E7E0D8",borderTopColor:"#92400E"}}/><p className="text-sm font-medium">{text}</p></div>);
 
+const Skeleton = () => (<div className="px-5 pb-8"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-stone-200 rounded-full"/><div className="h-5 w-40 bg-stone-200 rounded-lg animate-pulse"/></div>{[1,2,3].map(i=>(<div key={i} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 mb-3 flex"><div className="w-28 h-[100px] bg-stone-200 animate-pulse"/><div className="flex-1 p-4 space-y-2"><div className="h-4 w-24 bg-stone-200 rounded animate-pulse"/><div className="h-3 w-40 bg-stone-100 rounded animate-pulse"/><div className="h-4 w-20 bg-stone-200 rounded animate-pulse"/></div></div>))}</div>);
+
 const Shell = ({title,onBack,children,onHome}) => (
   <div className="min-h-screen bg-stone-50">
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-100 px-4 py-3.5 flex items-center gap-3">
@@ -131,7 +133,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading}) => {
           {[{icon:"🌿",t:"Fresh Daily",d:"Dibuat segar setiap hari"},{icon:"🎨",t:"Custom Order",d:"Sesuai acara kamu"},{icon:"❤️",t:"Homemade",d:"Buatan tangan, penuh cinta"}].map((b,i)=>(<div key={i} className="min-w-[140px] bg-white rounded-2xl p-4 shadow-sm border border-stone-100 text-center flex-shrink-0"><div className="text-2xl mb-2">{b.icon}</div><p className="text-xs font-bold text-stone-800 mb-0.5">{b.t}</p><p className="text-[10px] text-stone-400 leading-tight">{b.d}</p></div>))}
         </div>
       </div>
-      {loading?<Spin/>:(
+      {loading?<Skeleton/>:(
         <div className="px-5 pb-8">
           <div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
           <div className="flex flex-col gap-3">
@@ -411,7 +413,9 @@ export default function App(){
 
   const goH=()=>{setPg("home");setCat("");setPid(null);};
 
-  useEffect(()=>{(async()=>{try{const [p,o,c,s]=await Promise.all([dbProducts(),dbOrders(),dbClosedDates(),dbSettings()]);setProducts(p||[]);setOrders(o||[]);setCd(c||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}setLd(false);})();},[]);
+  useEffect(()=>{(async()=>{try{const [p,s]=await Promise.all([dbProducts(),dbSettings()]);setProducts(p||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}setLd(false);})();},[]);
+
+  const loadCheckoutData=async()=>{try{const [o,c]=await Promise.all([dbOrders(),dbClosedDates()]);setOrders(o||[]);setCd(c||[]);}catch(e){console.error(e);}};
 
   if(isA){if(!aLog)return<ALogin onLogin={()=>setALog(true)}/>;return<Admin onLogout={()=>{setALog(false);setIsA(false);}}/>;}
 
@@ -423,7 +427,7 @@ export default function App(){
     {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld}/>}
     {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
-    {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={()=>setPg("co")} onBack={()=>setPg("home")} onHome={goH}/>}
+    {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCheckoutData();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prev"&&co&&<Preview cart={cart} checkout={co} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
     {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={()=>setIsA(true)} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
