@@ -311,9 +311,17 @@ const AOrders = ({orders,onRefresh:rf}) => {
 
 const AMenu = ({products,onRefresh:rf}) => {
   const [ed,setEd]=useState(null);
-  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:""});
+  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[]});
   const [sv,setSv]=useState(false);
-  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url};try{if(ed==="new")await dbInsertProduct(d);else await dbUpdateProduct(ed,d);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
+
+  const addFlavor=()=>setFm(f=>({...f,flavors:[...f.flavors,""]}));
+  const updateFlavor=(i,v)=>setFm(f=>({...f,flavors:f.flavors.map((x,j)=>j===i?v:x)}));
+  const removeFlavor=(i)=>setFm(f=>({...f,flavors:f.flavors.filter((_,j)=>j!==i)}));
+  const addSize=()=>setFm(f=>({...f,sizes:[...f.sizes,{name:"",add:0}]}));
+  const updateSize=(i,k,v)=>setFm(f=>({...f,sizes:f.sizes.map((x,j)=>j===i?{...x,[k]:k==="add"?parseInt(v)||0:v}:x)}));
+  const removeSize=(i)=>setFm(f=>({...f,sizes:f.sizes.filter((_,j)=>j!==i)}));
+
+  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url,flavors:fm.flavors.filter(f=>f.trim()),sizes:fm.sizes.filter(s=>s.name.trim())};try{if(ed==="new")await dbInsertProduct(d);else await dbUpdateProduct(ed,d);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
 
   if(ed!==null) return(
     <div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -326,18 +334,31 @@ const AMenu = ({products,onRefresh:rf}) => {
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.label} onChange={e=>setFm(f=>({...f,label:e.target.value}))} placeholder="Contoh: Best Seller, Diskon 20%, Baru" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Warna Placeholder</label><input type="color" value={fm.color} onChange={e=>setFm(f=>({...f,color:e.target.value}))} className="w-12 h-10 rounded-xl border-0 cursor-pointer"/></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Deskripsi</label><textarea value={fm.description} onChange={e=>setFm(f=>({...f,description:e.target.value}))} rows={2} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-stone-600 mb-2">🎨 Pilihan Rasa</label>
+        {fm.flavors.map((f,i)=>(<div key={i} className="flex gap-2 mb-2"><input value={f} onChange={e=>updateFlavor(i,e.target.value)} placeholder={`Rasa ${i+1}`} className="flex-1 border border-stone-200 rounded-xl px-3 py-2.5 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><button onClick={()=>removeFlavor(i)} className="text-red-400 hover:text-red-600 px-2 text-sm transition">✕</button></div>))}
+        <button onClick={addFlavor} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Rasa</button>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-stone-600 mb-2">📏 Pilihan Ukuran</label>
+        {fm.sizes.map((s,i)=>(<div key={i} className="flex gap-2 mb-2"><input value={s.name} onChange={e=>updateSize(i,"name",e.target.value)} placeholder="Nama ukuran" className="flex-1 border border-stone-200 rounded-xl px-3 py-2.5 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><input type="number" value={s.add} onChange={e=>updateSize(i,"add",e.target.value)} placeholder="+ Harga" className="w-28 border border-stone-200 rounded-xl px-3 py-2.5 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><button onClick={()=>removeSize(i)} className="text-red-400 hover:text-red-600 px-2 text-sm transition">✕</button></div>))}
+        <button onClick={addSize} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Ukuran</button>
+        <p className="text-xs text-stone-400 mt-1">Harga 0 = harga dasar. Angka lain = tambahan dari harga dasar.</p>
+      </div>
       <div className="flex gap-2"><Btn onClick={save} full disabled={sv}>{sv?"Menyimpan...":"💾 Simpan"}</Btn><Btn onClick={()=>setEd(null)} variant="ghost" full>Batal</Btn></div>
     </div>
   );
 
   return(<div>
-    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:""});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
+    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[]});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
     {products.map(p=>(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out?"opacity-60":""}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={p.image_url} size="sm"/></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}</p><p className="text-xs text-stone-400">{p.category==="special"?"Special":"Classic"} · {fmt(p.price)}</p></div></div>
         <div className="flex gap-1">
           <button onClick={async()=>{try{await dbToggleSoldOut(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button>
-          <button onClick={()=>{setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||""});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
+          <button onClick={()=>{const fl=typeof p.flavors==="string"?JSON.parse(p.flavors||"[]"):(p.flavors||[]);const sz=typeof p.sizes==="string"?JSON.parse(p.sizes||"[]"):(p.sizes||[]);setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[]});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
           <button onClick={async()=>{try{await dbDeleteProduct(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button>
         </div>
       </div>
