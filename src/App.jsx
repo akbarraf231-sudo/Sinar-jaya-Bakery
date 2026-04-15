@@ -178,7 +178,8 @@ const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome}) => {
 };
 
 const Product = ({product:pr,onBack,onAdd,cart,onCart,onHome}) => {
-  const sz=pr.sizes||[],fl=pr.flavors||[];
+  const sz=typeof pr.sizes==="string"?JSON.parse(pr.sizes||"[]"):(pr.sizes||[]);
+  const fl=typeof pr.flavors==="string"?JSON.parse(pr.flavors||"[]"):(pr.flavors||[]);
   const [si,setSi]=useState(sz.length>0?0:-1);
   const [fv,setFv]=useState(fl.length>0?fl[0]:"");
   const [qty,setQty]=useState(1);
