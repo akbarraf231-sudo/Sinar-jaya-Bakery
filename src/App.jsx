@@ -97,30 +97,35 @@ const FAQ = ({settings:st,onBack,onHome}) => {
 const StoreClosed = () => (<div className="min-h-screen bg-stone-50 flex items-center justify-center px-5"><div className="text-center"><div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">🔒</span></div><h2 className="text-xl font-bold text-stone-800 mb-2">Toko Sedang Tutup</h2><p className="text-sm text-stone-400 mb-6 max-w-xs mx-auto leading-relaxed">Maaf, saat ini kami belum menerima pesanan. Silakan kembali lagi nanti atau hubungi kami via WhatsApp.</p><a href={`https://wa.me/${WA}?text=Halo, apakah toko sudah buka?`} target="_blank" rel="noreferrer"><Btn variant="whatsapp">💬 Hubungi Kami</Btn></a></div></div>);
 
 const Tracking = ({onBack,onHome}) => {
-  const [phone,setPhone]=useState("");const [orders,setOrders]=useState(null);const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
+  const [phone,setPhone]=useState("");const [orders,setOrders]=useState(null);const [loading,setLoading]=useState(false);const [err,setErr]=useState("");const [cancelling,setCancelling]=useState("");
   const statusInfo={waiting:{label:"Menunggu Verifikasi",color:"bg-yellow-100 text-yellow-800 border-yellow-200",icon:"⏳",desc:"Pesanan diterima, menunggu konfirmasi pembayaran",step:1},paid:{label:"Pembayaran Dikonfirmasi",color:"bg-emerald-100 text-emerald-800 border-emerald-200",icon:"✅",desc:"Pembayaran sudah dikonfirmasi, pesanan akan segera diproses",step:2},process:{label:"Sedang Diproses",color:"bg-blue-100 text-blue-800 border-blue-200",icon:"👨‍🍳",desc:"Pesanan kamu sedang dibuat dengan penuh cinta",step:3},done:{label:"Selesai",color:"bg-stone-100 text-stone-600 border-stone-200",icon:"🎉",desc:"Pesanan siap diambil! Terima kasih sudah order",step:4}};
   const steps=["Verifikasi","Lunas","Diproses","Selesai"];
-
   const search=async()=>{if(!phone.trim()){setErr("Masukkan nomor HP");return;}setErr("");setLoading(true);try{const r=await dbTrack(phone.trim());setOrders(r||[]);}catch{setErr("Gagal memuat data. Coba lagi.");}setLoading(false);};
 
+  const doCancel=async(o)=>{
+    if(!confirm(`Yakin ingin membatalkan pesanan ${o.order_number}?`))return;
+    setCancelling(o.order_number);
+    try{
+      await dbXO(o.id);
+      const msg=`Halo admin,%0A%0ASaya ingin membatalkan pesanan:%0ANo Order: ${o.order_number}%0ANama: ${o.customer_name}%0A%0AMohon diproses. Terima kasih.`;
+      window.open(`https://wa.me/${WA}?text=${msg}`,"_blank");
+      const r=await dbTrack(phone.trim());
+      setOrders(r||[]);
+    }catch{alert("Gagal cancel. Coba lagi.");}
+    setCancelling("");
+  };
+
   return(<Shell title="Cek Pesanan" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
-    <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
-      <div className="text-center mb-4"><span className="text-4xl">📦</span><h2 className="text-lg font-bold text-stone-800 mt-2">Cek Status Pesanan</h2><p className="text-xs text-stone-400 mt-1">Masukkan nomor HP yang digunakan saat order</p></div>
-      <div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="08xxxxxxxxxx" type="tel" className="flex-1 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><Btn onClick={search} disabled={loading}>{loading?"...":"Cari"}</Btn></div>
-      {err&&<p className="text-red-500 text-sm mt-2">⚠️ {err}</p>}
-    </div>
-
+    <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5"><div className="text-center mb-4"><span className="text-4xl">📦</span><h2 className="text-lg font-bold text-stone-800 mt-2">Cek Status Pesanan</h2><p className="text-xs text-stone-400 mt-1">Masukkan nomor HP yang digunakan saat order</p></div><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="08xxxxxxxxxx" type="tel" className="flex-1 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><Btn onClick={search} disabled={loading}>{loading?"...":"Cari"}</Btn></div>{err&&<p className="text-red-500 text-sm mt-2">⚠️ {err}</p>}</div>
     {orders!==null&&orders.length===0&&<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">🔍</p><p className="text-stone-400 font-medium">Tidak ada pesanan ditemukan</p><p className="text-xs text-stone-400 mt-1">Pastikan nomor HP sudah benar</p></div>}
-
     {orders&&orders.length>0&&<div className="space-y-4">{orders.map(o=>{const si=statusInfo[o.status]||statusInfo.waiting;const pd=new Date(o.pickup_date+"T00:00:00");
       return(<div key={o.id} className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5">
         <div className="flex items-center justify-between mb-4"><div><p className="text-[11px] text-stone-400">No. Order</p><p className="font-bold text-amber-800">{o.order_number}</p></div><span className={`text-xs font-semibold px-3 py-1 rounded-full border ${si.color}`}>{si.icon} {si.label}</span></div>
-
-        <div className="flex items-center justify-between mb-5 px-2">{steps.map((s,i)=>(<div key={i} className="flex flex-col items-center flex-1"><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i+1<=si.step?"bg-amber-800 text-white":"bg-stone-200 text-stone-400"}`}>{i+1<=si.step?"✓":i+1}</div><p className={`text-[9px] text-center ${i+1<=si.step?"text-amber-800 font-semibold":"text-stone-400"}`}>{s}</p>{i<3&&<div className={`absolute h-0.5 w-full ${i+1<si.step?"bg-amber-800":"bg-stone-200"}`}/>}</div>))}</div>
-
+        <div className="flex items-center justify-between mb-5 px-2">{steps.map((s,i)=>(<div key={i} className="flex flex-col items-center flex-1"><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i+1<=si.step?"bg-amber-800 text-white":"bg-stone-200 text-stone-400"}`}>{i+1<=si.step?"✓":i+1}</div><p className={`text-[9px] text-center ${i+1<=si.step?"text-amber-800 font-semibold":"text-stone-400"}`}>{s}</p></div>))}</div>
         <div className="bg-stone-50 rounded-2xl p-4 mb-3"><p className="text-sm text-stone-600 mb-2">{si.desc}</p><div className="text-xs text-stone-400 space-y-1"><p>📝 Tanggal order: {o.order_date}</p><p>📅 Tanggal ambil: {dfmt(pd)}</p><p>💰 Total: <span className="font-bold text-amber-800">{fmt(o.total)}</span></p></div></div>
-
-        <div className="text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>• {it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
+        <div className="text-xs text-stone-400 mb-3">{(o.items||[]).map((it,i)=><p key={i}>• {it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
+        {o.status==="waiting"&&<button onClick={()=>doCancel(o)} disabled={cancelling===o.order_number} className="w-full py-3 bg-red-50 text-red-600 border border-red-200 rounded-2xl text-sm font-semibold hover:bg-red-100 transition disabled:opacity-50">{cancelling===o.order_number?"Membatalkan...":"❌ Batalkan Pesanan"}</button>}
+        {["paid","process"].includes(o.status)&&<a href={`https://wa.me/${WA}?text=Halo admin, saya ingin edit/batalkan pesanan ${o.order_number}`} target="_blank" rel="noreferrer" className="block text-center w-full py-3 bg-stone-50 text-stone-600 border border-stone-200 rounded-2xl text-sm font-semibold hover:bg-stone-100 transition">💬 Hubungi Admin via WhatsApp</a>}
       </div>);})}</div>}
   </div></Shell>);
 };
@@ -252,9 +257,26 @@ const ALogin = ({onLogin}) => {
 const AOrders = ({orders,onRefresh:rf,newCount}) => {
   const [q,setQ]=useState("");const [fs,setFs]=useState("all");const [busy,setBusy]=useState("");
   const sL={waiting:"Menunggu",paid:"Lunas",process:"Diproses",done:"Selesai"},sV={waiting:"sw",paid:"sp",process:"sb",done:"sd"},sF={waiting:"paid",paid:"process",process:"done"};
+
+  const today=new Date().toISOString().split("T")[0];
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const tmw=tomorrow.toISOString().split("T")[0];
+  const upcomingOrders=orders.filter(o=>(o.pickup_date===today||o.pickup_date===tmw)&&["paid","process"].includes(o.status));
+
+  const sendReminder=(o)=>{
+    const isToday=o.pickup_date===today;
+    const msg=`Halo ${o.customer_name}! 👋%0A%0AKami ingatkan pesanan Anda:%0ANo Order: ${o.order_number}%0A%0ABisa diambil ${isToday?"*hari ini*":"*besok*"} (${o.pickup_date}).%0A%0ATerima kasih sudah memesan di Sinar Jaya Bakery! 🍞`;
+    window.open(`https://wa.me/${o.customer_phone.replace(/^0/,"62")}?text=${msg}`,"_blank");
+  };
+
   let ls=[...orders];if(fs!=="all")ls=ls.filter(o=>o.status===fs);if(q)ls=ls.filter(o=>o.customer_name.toLowerCase().includes(q.toLowerCase())||o.customer_phone.includes(q)||o.order_number.toLowerCase().includes(q.toLowerCase()));
   return(<div>
     {newCount>0&&<div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-center gap-3"><span className="text-2xl">🔔</span><p className="text-sm text-amber-800 font-semibold">{newCount} pesanan baru masuk!</p></div>}
+
+    {upcomingOrders.length>0&&<div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3"><span className="text-lg">📅</span><p className="text-sm font-bold text-blue-900">Reminder Pickup ({upcomingOrders.length})</p></div>
+      <div className="space-y-2">{upcomingOrders.map(o=>{const isToday=o.pickup_date===today;return(<div key={o.id} className="bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="flex-1 min-w-0"><p className="text-sm font-bold text-stone-800 truncate">{o.customer_name}</p><p className="text-xs text-stone-500">{o.order_number} · {isToday?<span className="text-red-600 font-semibold">Hari ini</span>:<span className="text-orange-600 font-semibold">Besok</span>}</p></div><button onClick={()=>sendReminder(o)} className="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-emerald-700 transition whitespace-nowrap">💬 Reminder</button></div>);})}</div>
+    </div>}
+
     <Inp placeholder="Cari nama / no HP / no order..." value={q} onChange={e=>setQ(e.target.value)}/>
     <div className="flex gap-2 mb-5 overflow-x-auto pb-1">{["all","waiting","paid","process","done"].map(s=><button key={s} onClick={()=>setFs(s)} className={`text-xs px-4 py-2 rounded-full whitespace-nowrap border-2 transition-all font-medium ${s===fs?"bg-amber-800 text-white border-amber-800":"border-stone-200 text-stone-500 hover:border-stone-300"}`}>{s==="all"?"Semua":sL[s]}{s==="waiting"&&newCount>0?` (${newCount})`:""}</button>)}</div>
     {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>(<div key={o.id} className="bg-white rounded-2xl p-5 mb-3 shadow-sm border border-stone-100">
