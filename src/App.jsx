@@ -139,7 +139,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading}) => {
           <div className="flex flex-col gap-3">
             {bs.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left w-full flex group ${p.is_sold_out?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-200"} transition-all`}>
               <div className="w-28 min-h-[100px] flex-shrink-0 overflow-hidden relative"><Img name={p.name} color={p.color} img={p.image_url} size="md"/>{p.is_sold_out&&<div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">Habis</span></div>}</div>
-              <div className="flex-1 p-4 flex flex-col justify-center"><div className="flex items-center gap-2 mb-1"><span className="font-bold text-stone-800">{p.name}</span><LBadge label={p.label}/></div><p className="text-xs text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.recommendation}</p><span className={`font-bold ${p.is_sold_out?"text-stone-400 line-through":"text-amber-800"}`}>{fmt(p.price)}</span></div>
+              <div className="flex-1 p-4 flex flex-col justify-center"><div className="flex items-center gap-2 mb-1"><span className="font-bold text-stone-800">{p.name}</span><LBadge label={p.label}/></div><p className="text-xs text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.recommendation}</p><div className="flex items-center gap-2">{p.discount>0&&!p.is_sold_out&&<span className="text-xs text-stone-400 line-through">{fmt(p.price)}</span>}<span className={`font-bold ${p.is_sold_out?"text-stone-400 line-through":"text-amber-800"}`}>{p.discount>0&&!p.is_sold_out?fmt(Math.round(p.price*(1-p.discount/100))):fmt(p.price)}</span>{p.discount>0&&!p.is_sold_out&&<span className="text-[10px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded-full">-{p.discount}%</span>}</div></div>
               <div className="flex items-center pr-4 text-stone-300 group-hover:text-amber-600 transition">›</div>
             </button>))}
           </div>
@@ -166,7 +166,7 @@ const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome}) => {
             {fl.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}>
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full">
                 <div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={p.image_url} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LBadge label={p.label}/></div>}</div>
-                <div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.portion&&<p className="text-[10px] text-stone-400 mb-1">👥 {p.portion}</p>}<p className="text-[10px] text-stone-400 mb-2.5 line-clamp-2 leading-relaxed">{p.recommendation}</p><div className="flex items-center justify-between"><p className={`font-bold text-sm ${p.is_sold_out?"text-stone-400 line-through":"text-amber-800"}`}>{fmt(p.price)}</p>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div>
+                <div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.portion&&<p className="text-[10px] text-stone-400 mb-1">👥 {p.portion}</p>}<p className="text-[10px] text-stone-400 mb-2.5 line-clamp-2 leading-relaxed">{p.recommendation}</p><div className="flex items-center justify-between"><div>{p.discount>0&&!p.is_sold_out&&<p className="text-[10px] text-stone-400 line-through">{fmt(p.price)}</p>}<p className={`font-bold text-sm ${p.is_sold_out?"text-stone-400 line-through":"text-amber-800"}`}>{p.discount>0&&!p.is_sold_out?fmt(Math.round(p.price*(1-p.discount/100))):fmt(p.price)}</p></div>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div>
               </div>
             </button>))}
           </div>
@@ -180,11 +180,26 @@ const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome}) => {
 const Product = ({product:pr,onBack,onAdd,cart,onCart,onHome}) => {
   const sz=typeof pr.sizes==="string"?JSON.parse(pr.sizes||"[]"):(pr.sizes||[]);
   const fl=typeof pr.flavors==="string"?JSON.parse(pr.flavors||"[]"):(pr.flavors||[]);
+  const isClassic=pr.category==="classic";
+  const disc=pr.discount||0;
   const [si,setSi]=useState(sz.length>0?0:-1);
-  const [fv,setFv]=useState(fl.length>0?fl[0]:"");
+  const [fv,setFv]=useState(isClassic?[]:(fl.length>0?fl[0]:""));
   const [qty,setQty]=useState(1);
   const [note,setNote]=useState("");
-  const sa=si>=0?sz[si].add:0, up=pr.price+sa, tot=up*qty;
+  const sa=si>=0?sz[si].add:0;
+  const basePrice=pr.price+sa;
+  const up=disc>0?Math.round(basePrice*(1-disc/100)):basePrice;
+  const tot=up*qty;
+
+  const toggleClassicFlavor=(f)=>{
+    setFv(prev=>{
+      if(!Array.isArray(prev))return[f];
+      if(prev.includes(f))return prev.filter(x=>x!==f);
+      return[...prev,f];
+    });
+  };
+
+  const flavorDisplay=isClassic?(Array.isArray(fv)?fv.join(", "):""):(fv||"");
 
   return(
     <Shell onBack={onBack} onHome={onHome}>
@@ -198,15 +213,15 @@ const Product = ({product:pr,onBack,onAdd,cart,onCart,onHome}) => {
 
         {sz.length>0&&(<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4"><p className="text-sm font-bold text-stone-800 mb-3">📏 Pilih Ukuran</p><div className="flex flex-col gap-2">{sz.map((s,i)=>(<button key={i} onClick={()=>setSi(i)} className={`border-2 rounded-2xl px-4 py-3.5 text-left text-sm transition-all flex items-center justify-between ${i===si?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 font-semibold text-amber-900 shadow-sm":"border-stone-200 text-stone-600 hover:border-stone-300"}`}><span>{s.name}</span><span className="font-bold">{fmt(pr.price+s.add)}</span></button>))}</div></div>)}
 
-        {fl.length>0&&(<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4"><p className="text-sm font-bold text-stone-800 mb-3">🎨 Pilih Rasa</p><div className="flex flex-wrap gap-2">{fl.map(f=>(<button key={f} onClick={()=>setFv(f)} className={`border-2 rounded-full px-5 py-2.5 text-sm transition-all ${f===fv?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 font-semibold text-amber-900 shadow-sm":"border-stone-200 text-stone-600 hover:border-stone-300"}`}>{f}</button>))}</div></div>)}
+        {fl.length>0&&(<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4"><p className="text-sm font-bold text-stone-800 mb-1">🎨 Pilih Rasa</p>{isClassic&&<p className="text-xs text-stone-400 mb-3">Bisa pilih lebih dari 1</p>}{!isClassic&&<div className="mb-3"/>}<div className="flex flex-wrap gap-2">{fl.map(f=>{const selected=isClassic?(Array.isArray(fv)&&fv.includes(f)):f===fv;return(<button key={f} onClick={()=>isClassic?toggleClassicFlavor(f):setFv(f)} className={`border-2 rounded-full px-5 py-2.5 text-sm transition-all ${selected?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 font-semibold text-amber-900 shadow-sm":"border-stone-200 text-stone-600 hover:border-stone-300"}`}>{selected&&isClassic&&"✓ "}{f}</button>);})}</div></div>)}
 
         <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4"><p className="text-sm font-bold text-stone-800 mb-3">🔢 Jumlah</p><div className="flex items-center gap-4"><button onClick={()=>setQty(Math.max(1,qty-1))} className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center text-lg font-bold text-stone-500 hover:bg-amber-100 hover:text-amber-700 transition-all active:scale-90">−</button><span className="text-2xl font-bold w-10 text-center text-stone-800">{qty}</span><button onClick={()=>setQty(qty+1)} className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center text-lg font-bold text-stone-500 hover:bg-amber-100 hover:text-amber-700 transition-all active:scale-90">+</button></div></div>
 
         <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-4"><p className="text-sm font-bold text-stone-800 mb-3">📝 Catatan <span className="text-stone-400 font-normal text-xs">(opsional)</span></p><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Tulisan di kue, request khusus, dll" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white transition"/></div>
 
-        <div className="bg-gradient-to-r from-amber-800 to-amber-900 rounded-3xl p-5 mb-4 flex items-center justify-between shadow-lg"><div><p className="text-amber-200 text-xs mb-0.5">Total Harga</p><p className="text-2xl font-bold text-white">{fmt(tot)}</p></div><div className="text-right"><p className="text-amber-200 text-xs mb-0.5">{qty} item</p><p className="text-amber-100 text-xs">@ {fmt(up)}</p></div></div>
+        <div className="bg-gradient-to-r from-amber-800 to-amber-900 rounded-3xl p-5 mb-4 flex items-center justify-between shadow-lg"><div><p className="text-amber-200 text-xs mb-0.5">Total Harga</p>{disc>0&&<p className="text-amber-300/60 text-sm line-through">{fmt(basePrice*qty)}</p>}<p className="text-2xl font-bold text-white">{fmt(tot)}</p></div><div className="text-right">{disc>0&&<p className="text-xs font-bold text-emerald-300 mb-0.5">Diskon {disc}%</p>}<p className="text-amber-200 text-xs mb-0.5">{qty} item</p><p className="text-amber-100 text-xs">@ {fmt(up)}</p></div></div>
 
-        <Btn onClick={()=>onAdd({id:pr.id,name:pr.name,color:pr.color,img:pr.image_url,size:si>=0?sz[si].name:"",flavor:fv,qty,unitPrice:up,note,category:pr.category})} full>🛒 Tambah ke Keranjang</Btn>
+        <Btn onClick={()=>onAdd({id:pr.id,name:pr.name,color:pr.color,img:pr.image_url,size:si>=0?sz[si].name:"",flavor:flavorDisplay,qty,unitPrice:up,note,category:pr.category})} full>🛒 Tambah ke Keranjang</Btn>
         <div className="h-6"/>
       </div>
       <FCart cart={cart} onClick={onCart}/>
@@ -311,7 +326,7 @@ const AOrders = ({orders,onRefresh:rf}) => {
 
 const AMenu = ({products,onRefresh:rf}) => {
   const [ed,setEd]=useState(null);
-  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[]});
+  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0});
   const [sv,setSv]=useState(false);
 
   const addFlavor=()=>setFm(f=>({...f,flavors:[...f.flavors,""]}));
@@ -321,7 +336,7 @@ const AMenu = ({products,onRefresh:rf}) => {
   const updateSize=(i,k,v)=>setFm(f=>({...f,sizes:f.sizes.map((x,j)=>j===i?{...x,[k]:k==="add"?parseInt(v)||0:v}:x)}));
   const removeSize=(i)=>setFm(f=>({...f,sizes:f.sizes.filter((_,j)=>j!==i)}));
 
-  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url,flavors:fm.flavors.filter(f=>f.trim()),sizes:fm.sizes.filter(s=>s.name.trim())};try{if(ed==="new")await dbInsertProduct(d);else await dbUpdateProduct(ed,d);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
+  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url,flavors:fm.flavors.filter(f=>f.trim()),sizes:fm.sizes.filter(s=>s.name.trim()),discount:Number(fm.discount)||0};try{if(ed==="new")await dbInsertProduct(d);else await dbUpdateProduct(ed,d);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
 
   if(ed!==null) return(
     <div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -329,6 +344,14 @@ const AMenu = ({products,onRefresh:rf}) => {
       <ImgUp value={fm.image_url} onChange={v=>setFm(f=>({...f,image_url:v}))}/>
       <Inp label="Nama" value={fm.name} onChange={e=>setFm(f=>({...f,name:e.target.value}))}/>
       <Inp label="Harga" type="number" value={fm.price} onChange={e=>setFm(f=>({...f,price:e.target.value}))}/>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-stone-600 mb-1.5">Diskon <span className="text-stone-400 font-normal text-xs">(% — opsional, 0 = tanpa diskon)</span></label>
+        <div className="flex items-center gap-3">
+          <input type="number" min="0" max="100" value={fm.discount||0} onChange={e=>setFm(f=>({...f,discount:Math.min(100,Math.max(0,parseInt(e.target.value)||0))}))} className="w-24 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/>
+          <span className="text-sm text-stone-500">%</span>
+          {fm.discount>0&&fm.price&&<span className="text-xs text-emerald-600 font-medium">→ {fmt(Math.round(Number(fm.price)*(1-fm.discount/100)))}</span>}
+        </div>
+      </div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category} onChange={e=>setFm(f=>({...f,category:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="classic">Classic</option><option value="special">Special</option></select></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Sub-kategori <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.subcategory||""} onChange={e=>setFm(f=>({...f,subcategory:e.target.value}))} placeholder="Contoh: Roti Manis, Kue Kering" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.label} onChange={e=>setFm(f=>({...f,label:e.target.value}))} placeholder="Contoh: Best Seller, Diskon 20%, Baru" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
@@ -352,13 +375,13 @@ const AMenu = ({products,onRefresh:rf}) => {
   );
 
   return(<div>
-    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[]});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
+    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
     {products.map(p=>(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out?"opacity-60":""}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={p.image_url} size="sm"/></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}</p><p className="text-xs text-stone-400">{p.category==="special"?"Special":"Classic"} · {fmt(p.price)}</p></div></div>
         <div className="flex gap-1">
           <button onClick={async()=>{try{await dbToggleSoldOut(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button>
-          <button onClick={()=>{const fl=typeof p.flavors==="string"?JSON.parse(p.flavors||"[]"):(p.flavors||[]);const sz=typeof p.sizes==="string"?JSON.parse(p.sizes||"[]"):(p.sizes||[]);setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[]});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
+          <button onClick={()=>{const fl=typeof p.flavors==="string"?JSON.parse(p.flavors||"[]"):(p.flavors||[]);const sz=typeof p.sizes==="string"?JSON.parse(p.sizes||"[]"):(p.sizes||[]);setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[],discount:p.discount||0});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button>
           <button onClick={async()=>{try{await dbDeleteProduct(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button>
         </div>
       </div>
