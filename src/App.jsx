@@ -121,8 +121,8 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack}) => {
         <div className="flex justify-center gap-6 mb-4 text-amber-100/80 text-xs"><span>🌿 Fresh Daily</span><span>🎨 Custom Order</span><span>❤️ Homemade</span></div></div></div>
     <div className="px-5 -mt-4 relative z-10"><div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 flex items-center gap-3 mb-4"><span className="text-lg">⚡</span><p className="text-sm text-stone-600 flex-1"><span className="font-semibold text-amber-800">Slot terbatas</span> setiap hari — pesan sekarang!</p></div>
       <div className="flex gap-2">
-        <button onClick={()=>onCat("special")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🎉<br/>Special</button>
-        <button onClick={()=>onCat("classic")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🍩<br/>Classic</button>
+        <button onClick={()=>onCat("special")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🎉<br/>Special Selection</button>
+        <button onClick={()=>onCat("classic")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🍩<br/>Classic Selection</button>
         <button onClick={onTrack} className="flex-1 bg-white text-amber-800 rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all active:scale-[0.97]">📦<br/>Cek Pesanan</button>
       </div>
     </div>
