@@ -71,7 +71,38 @@ const Skel = () => (<div className="px-5 pb-8"><div className="flex items-center
 
 const Shell = ({title,onBack,children,onHome}) => (<div className="min-h-screen bg-stone-50"><header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-100 px-4 py-3.5 flex items-center gap-3">{onBack&&<button onClick={onBack} className="text-stone-400 hover:text-stone-700 text-lg transition">←</button>}{onHome&&<button onClick={onHome} className="font-bold text-amber-800 text-lg tracking-tight">SJB</button>}{title&&<h1 className="font-bold text-stone-800 text-[15px] truncate">{title}</h1>}</header><main className="pb-28">{children}</main><div className="fixed bottom-4 right-4 z-50"><a href={`https://wa.me/${WA}?text=Halo, saya butuh bantuan`} target="_blank" rel="noreferrer" className="bg-emerald-500 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 text-xl hover:bg-emerald-600 hover:scale-105 transition-all">💬</a></div></div>);
 
+const dbTrack = (phone) => sb(`/rest/v1/orders?customer_phone=eq.${encodeURIComponent(phone)}&status=neq.archived&order=id.desc`, H());
+
 const StoreClosed = () => (<div className="min-h-screen bg-stone-50 flex items-center justify-center px-5"><div className="text-center"><div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">🔒</span></div><h2 className="text-xl font-bold text-stone-800 mb-2">Toko Sedang Tutup</h2><p className="text-sm text-stone-400 mb-6 max-w-xs mx-auto leading-relaxed">Maaf, saat ini kami belum menerima pesanan. Silakan kembali lagi nanti atau hubungi kami via WhatsApp.</p><a href={`https://wa.me/${WA}?text=Halo, apakah toko sudah buka?`} target="_blank" rel="noreferrer"><Btn variant="whatsapp">💬 Hubungi Kami</Btn></a></div></div>);
+
+const Tracking = ({onBack,onHome}) => {
+  const [phone,setPhone]=useState("");const [orders,setOrders]=useState(null);const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
+  const statusInfo={waiting:{label:"Menunggu Verifikasi",color:"bg-yellow-100 text-yellow-800 border-yellow-200",icon:"⏳",desc:"Pesanan diterima, menunggu konfirmasi pembayaran",step:1},paid:{label:"Pembayaran Dikonfirmasi",color:"bg-emerald-100 text-emerald-800 border-emerald-200",icon:"✅",desc:"Pembayaran sudah dikonfirmasi, pesanan akan segera diproses",step:2},process:{label:"Sedang Diproses",color:"bg-blue-100 text-blue-800 border-blue-200",icon:"👨‍🍳",desc:"Pesanan kamu sedang dibuat dengan penuh cinta",step:3},done:{label:"Selesai",color:"bg-stone-100 text-stone-600 border-stone-200",icon:"🎉",desc:"Pesanan siap diambil! Terima kasih sudah order",step:4}};
+  const steps=["Verifikasi","Lunas","Diproses","Selesai"];
+
+  const search=async()=>{if(!phone.trim()){setErr("Masukkan nomor HP");return;}setErr("");setLoading(true);try{const r=await dbTrack(phone.trim());setOrders(r||[]);}catch{setErr("Gagal memuat data. Coba lagi.");}setLoading(false);};
+
+  return(<Shell title="Cek Pesanan" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
+    <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
+      <div className="text-center mb-4"><span className="text-4xl">📦</span><h2 className="text-lg font-bold text-stone-800 mt-2">Cek Status Pesanan</h2><p className="text-xs text-stone-400 mt-1">Masukkan nomor HP yang digunakan saat order</p></div>
+      <div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="08xxxxxxxxxx" type="tel" className="flex-1 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><Btn onClick={search} disabled={loading}>{loading?"...":"Cari"}</Btn></div>
+      {err&&<p className="text-red-500 text-sm mt-2">⚠️ {err}</p>}
+    </div>
+
+    {orders!==null&&orders.length===0&&<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">🔍</p><p className="text-stone-400 font-medium">Tidak ada pesanan ditemukan</p><p className="text-xs text-stone-400 mt-1">Pastikan nomor HP sudah benar</p></div>}
+
+    {orders&&orders.length>0&&<div className="space-y-4">{orders.map(o=>{const si=statusInfo[o.status]||statusInfo.waiting;const pd=new Date(o.pickup_date+"T00:00:00");
+      return(<div key={o.id} className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5">
+        <div className="flex items-center justify-between mb-4"><div><p className="text-[11px] text-stone-400">No. Order</p><p className="font-bold text-amber-800">{o.order_number}</p></div><span className={`text-xs font-semibold px-3 py-1 rounded-full border ${si.color}`}>{si.icon} {si.label}</span></div>
+
+        <div className="flex items-center justify-between mb-5 px-2">{steps.map((s,i)=>(<div key={i} className="flex flex-col items-center flex-1"><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i+1<=si.step?"bg-amber-800 text-white":"bg-stone-200 text-stone-400"}`}>{i+1<=si.step?"✓":i+1}</div><p className={`text-[9px] text-center ${i+1<=si.step?"text-amber-800 font-semibold":"text-stone-400"}`}>{s}</p>{i<3&&<div className={`absolute h-0.5 w-full ${i+1<si.step?"bg-amber-800":"bg-stone-200"}`}/>}</div>))}</div>
+
+        <div className="bg-stone-50 rounded-2xl p-4 mb-3"><p className="text-sm text-stone-600 mb-2">{si.desc}</p><div className="text-xs text-stone-400 space-y-1"><p>📅 Tanggal ambil: {dfmt(pd)}</p><p>💰 Total: <span className="font-bold text-amber-800">{fmt(o.total)}</span></p></div></div>
+
+        <div className="text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>• {it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
+      </div>);})}</div>}
+  </div></Shell>);
+};
 
 const PriceDisplay = ({price,discount,soldOut}) => {
   const disc = discount||0;
@@ -81,13 +112,14 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
       <div className="relative z-10"><p className="text-amber-200/80 text-xs tracking-[0.2em] uppercase mb-3 font-medium">Homemade Bakery</p><h1 className="text-3xl font-bold mb-2 tracking-tight">Sinar Jaya Bakery</h1><p className="text-amber-100/70 text-sm mb-8 max-w-xs mx-auto leading-relaxed">Menyempurnakan setiap momen spesial dengan kue buatan tangan penuh cinta</p>
-        <div className="flex flex-col gap-3 max-w-xs mx-auto"><Btn onClick={()=>onCat("special")} full variant="secondary">🎉 Special Selection</Btn><Btn onClick={()=>onCat("classic")} full variant="secondary">🍩 Classic Selection</Btn></div></div></div>
+        <div className="flex flex-col gap-3 max-w-xs mx-auto"><Btn onClick={()=>onCat("special")} full variant="secondary">🎉 Special Selection</Btn><Btn onClick={()=>onCat("classic")} full variant="secondary">🍩 Classic Selection</Btn></div>
+        <button onClick={onTrack} className="mt-5 text-amber-200/80 text-sm underline underline-offset-4 hover:text-white transition">📦 Cek Status Pesanan</button></div></div>
     <div className="px-5 -mt-4 relative z-10"><div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 flex items-center gap-3"><span className="text-lg">⚡</span><p className="text-sm text-stone-600 flex-1"><span className="font-semibold text-amber-800">Slot terbatas</span> setiap hari — pesan sekarang!</p></div></div>
     <div className="px-5 py-8"><div className="flex gap-3 overflow-x-auto pb-1">{[{i:"🌿",t:"Fresh Daily",d:"Dibuat segar setiap hari"},{i:"🎨",t:"Custom Order",d:"Sesuai acara kamu"},{i:"❤️",t:"Homemade",d:"Buatan tangan, penuh cinta"}].map((b,j)=>(<div key={j} className="min-w-[140px] bg-white rounded-2xl p-4 shadow-sm border border-stone-100 text-center flex-shrink-0"><div className="text-2xl mb-2">{b.i}</div><p className="text-xs font-bold text-stone-800 mb-0.5">{b.t}</p><p className="text-[10px] text-stone-400 leading-tight">{b.d}</p></div>))}</div></div>
     {loading?<Skel/>:(<div className="px-5 pb-8"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
@@ -145,16 +177,17 @@ const Cart = ({cart,dispatch:d,onCheckout,onBack,onHome}) => {
 };
 
 const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome}) => {
-  const [nm,setNm]=useState("");const [ph,setPh]=useState("");const [dt,setDt]=useState("");const [err,setErr]=useState("");const [sub,setSub]=useState(false);
+  const [nm,setNm]=useState("");const [ph,setPh]=useState("");const [dt,setDt]=useState("");const [tm,setTm]=useState("");const [err,setErr]=useState("");const [sub,setSub]=useState(false);
   const hasSp=cart.some(i=>i.category==="special"),ltc=parseInt(st.lead_time_classic||"0"),lts=parseInt(st.lead_time_special||"5"),ld=hasSp?lts:ltc,quota=parseInt(st.daily_quota||"20");
   const today=new Date(),minD=new Date(today);minD.setDate(minD.getDate()+ld);const minDS=minD.toISOString().split("T")[0];
   const ood=orders.filter(o=>o.pickup_date===dt).length,isFull=hasSp&&ood>=quota,isClosed=cd.some(d=>d.date===dt),sl=hasSp?Math.max(0,quota-ood):null;
-  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,orderNum:on});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
+  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(hasSp&&!tm)return setErr("Jam ambil wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,time:tm,orderNum:on});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
   return(<Shell title="Checkout" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     {hasSp&&<div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-2xl mb-5 border border-amber-100">ℹ️ Minimal H-{lts}</div>}
     <Inp label="Nama" required value={nm} onChange={e=>setNm(e.target.value)} placeholder="Nama lengkap"/>
     <Inp label="Nomor HP" required value={ph} onChange={e=>setPh(e.target.value)} placeholder="08xxxxxxxxxx" type="tel"/>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={dt} min={minDS} onChange={e=>setDt(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">{hasSp?`Minimal H-${lts}`:"Bisa same day"}</p></div>
+    {hasSp&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">Pilih jam yang diinginkan untuk pengambilan</p></div>}
     {dt&&isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Tanggal tutup.</div>}
     {dt&&isFull&&!isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Slot penuh.</div>}
     {dt&&!isClosed&&!isFull&&sl!==null&&<div className={`text-sm px-4 py-3 rounded-2xl mb-4 border ${sl<=5?"bg-orange-50 text-orange-700 border-orange-100":"bg-emerald-50 text-emerald-700 border-emerald-100"}`}>{sl<=5?`⚡ Sisa ${sl} slot`:`✅ Tersedia (${sl} slot)`}</div>}
@@ -165,14 +198,15 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
 const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
   const tot=cart.reduce((s,i)=>s+i.unitPrice*i.qty,0),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
-  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
+  const timeStr=co.time?` pukul ${co.time}`:"";
+  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
   const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:cart.map(i=>i.note).filter(Boolean).join("; "),pickup_date:co.date,status:"waiting"});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
       <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
       <div className="border-t border-stone-200 pt-4 flex justify-between items-center mb-5"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
-      <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}</p></div></div>
+      <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
     <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":"📲 Kirim ke WhatsApp"}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
 };
@@ -330,7 +364,8 @@ export default function App(){
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")}/>}
+    {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
