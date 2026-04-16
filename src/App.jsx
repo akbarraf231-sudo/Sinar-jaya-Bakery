@@ -97,7 +97,7 @@ const Tracking = ({onBack,onHome}) => {
 
         <div className="flex items-center justify-between mb-5 px-2">{steps.map((s,i)=>(<div key={i} className="flex flex-col items-center flex-1"><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i+1<=si.step?"bg-amber-800 text-white":"bg-stone-200 text-stone-400"}`}>{i+1<=si.step?"✓":i+1}</div><p className={`text-[9px] text-center ${i+1<=si.step?"text-amber-800 font-semibold":"text-stone-400"}`}>{s}</p>{i<3&&<div className={`absolute h-0.5 w-full ${i+1<si.step?"bg-amber-800":"bg-stone-200"}`}/>}</div>))}</div>
 
-        <div className="bg-stone-50 rounded-2xl p-4 mb-3"><p className="text-sm text-stone-600 mb-2">{si.desc}</p><div className="text-xs text-stone-400 space-y-1"><p>📅 Tanggal ambil: {dfmt(pd)}</p><p>💰 Total: <span className="font-bold text-amber-800">{fmt(o.total)}</span></p></div></div>
+        <div className="bg-stone-50 rounded-2xl p-4 mb-3"><p className="text-sm text-stone-600 mb-2">{si.desc}</p><div className="text-xs text-stone-400 space-y-1"><p>📝 Tanggal order: {o.order_date}</p><p>📅 Tanggal ambil: {dfmt(pd)}</p><p>💰 Total: <span className="font-bold text-amber-800">{fmt(o.total)}</span></p></div></div>
 
         <div className="text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>• {it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       </div>);})}</div>}
@@ -232,7 +232,7 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
       <p className="text-sm text-stone-600">👤 {o.customer_name} · 📱 {o.customer_phone}</p>
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
-      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><span>📅 {o.pickup_date}</span><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}</span></div>
+      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}</span></div>
       <div className="flex gap-2 mt-4">{sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?"💰 Tandai Bayar":o.status==="paid"?"⚙️ Proses":"✅ Selesai"}</Btn>}{o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}</div>
     </div>))}
   </div>);
