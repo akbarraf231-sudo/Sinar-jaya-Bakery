@@ -73,6 +73,27 @@ const Shell = ({title,onBack,children,onHome}) => (<div className="min-h-screen 
 
 const dbTrack = (phone) => sb(`/rest/v1/orders?customer_phone=eq.${encodeURIComponent(phone)}&status=neq.archived&order=id.desc`, H());
 
+const StoreInfo = ({settings:st,onBack,onHome}) => {
+  const hasInfo = st.store_address||st.store_hours||st.store_payment_info||st.store_minimum_order||st.store_about||st.store_maps_url;
+  return(<Shell title="Info Toko" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
+    {!hasInfo?<div className="text-center py-16 text-stone-300"><p className="text-4xl mb-3">📝</p><p className="text-stone-400">Info toko belum diisi</p></div>:<>
+      {st.store_about&&<div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-5 mb-4 border border-amber-100"><p className="text-sm text-stone-700 leading-relaxed whitespace-pre-line">{st.store_about}</p></div>}
+      {st.store_address&&<div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5 mb-3"><div className="flex items-start gap-3"><span className="text-2xl">📍</span><div className="flex-1"><p className="text-xs text-stone-400 mb-1">Alamat</p><p className="text-sm text-stone-700 whitespace-pre-line">{st.store_address}</p>{st.store_maps_url&&<a href={st.store_maps_url} target="_blank" rel="noreferrer" className="inline-block mt-2 text-xs text-amber-700 font-semibold underline">🗺️ Buka di Google Maps</a>}</div></div></div>}
+      {st.store_hours&&<div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5 mb-3"><div className="flex items-start gap-3"><span className="text-2xl">🕐</span><div><p className="text-xs text-stone-400 mb-1">Jam Operasional</p><p className="text-sm text-stone-700 whitespace-pre-line">{st.store_hours}</p></div></div></div>}
+      {st.store_payment_info&&<div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5 mb-3"><div className="flex items-start gap-3"><span className="text-2xl">💳</span><div><p className="text-xs text-stone-400 mb-1">Pembayaran</p><p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p></div></div></div>}
+      {st.store_minimum_order&&<div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-5 mb-3"><div className="flex items-start gap-3"><span className="text-2xl">📦</span><div><p className="text-xs text-stone-400 mb-1">Minimum Order</p><p className="text-sm text-stone-700 whitespace-pre-line">{st.store_minimum_order}</p></div></div></div>}
+    </>}
+  </div></Shell>);
+};
+
+const FAQ = ({settings:st,onBack,onHome}) => {
+  const faqs = jp(st.faq_json,[]);
+  const [open,setOpen] = useState(-1);
+  return(<Shell title="FAQ" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
+    {faqs.length===0?<div className="text-center py-16 text-stone-300"><p className="text-4xl mb-3">❓</p><p className="text-stone-400">Belum ada pertanyaan</p></div>:<div className="space-y-3">{faqs.map((f,i)=>(<div key={i} className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden"><button onClick={()=>setOpen(open===i?-1:i)} className="w-full p-4 flex items-center justify-between text-left hover:bg-stone-50 transition"><span className="text-sm font-semibold text-stone-800 flex-1 pr-3">{f.q}</span><span className={`text-stone-400 transition-transform ${open===i?"rotate-180":""}`}>▼</span></button>{open===i&&<div className="px-4 pb-4 pt-0 border-t border-stone-100"><p className="text-sm text-stone-600 leading-relaxed whitespace-pre-line mt-3">{f.a}</p></div>}</div>))}</div>}
+  </div></Shell>);
+};
+
 const StoreClosed = () => (<div className="min-h-screen bg-stone-50 flex items-center justify-center px-5"><div className="text-center"><div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">🔒</span></div><h2 className="text-xl font-bold text-stone-800 mb-2">Toko Sedang Tutup</h2><p className="text-sm text-stone-400 mb-6 max-w-xs mx-auto leading-relaxed">Maaf, saat ini kami belum menerima pesanan. Silakan kembali lagi nanti atau hubungi kami via WhatsApp.</p><a href={`https://wa.me/${WA}?text=Halo, apakah toko sudah buka?`} target="_blank" rel="noreferrer"><Btn variant="whatsapp">💬 Hubungi Kami</Btn></a></div></div>);
 
 const Tracking = ({onBack,onHome}) => {
@@ -112,7 +133,7 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
@@ -124,6 +145,10 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack}) => {
         <button onClick={()=>onCat("special")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🎉<br/>Special Selection</button>
         <button onClick={()=>onCat("classic")} className="flex-1 bg-amber-800 text-white rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-lg shadow-amber-800/20 hover:bg-amber-900 transition-all active:scale-[0.97]">🍩<br/>Classic Selection</button>
         <button onClick={onTrack} className="flex-1 bg-white text-amber-800 rounded-2xl py-3.5 px-2 text-center font-semibold text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all active:scale-[0.97]">📦<br/>Cek Pesanan</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button onClick={onInfo} className="bg-white text-stone-700 rounded-2xl py-3 px-3 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">📍 Info Toko</button>
+        <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-3 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
     </div>
     {loading?<Skel/>:(<div className="px-5 pb-8"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
@@ -181,17 +206,18 @@ const Cart = ({cart,dispatch:d,onCheckout,onBack,onHome}) => {
 };
 
 const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome}) => {
-  const [nm,setNm]=useState("");const [ph,setPh]=useState("");const [dt,setDt]=useState("");const [tm,setTm]=useState("");const [err,setErr]=useState("");const [sub,setSub]=useState(false);
+  const [nm,setNm]=useState("");const [ph,setPh]=useState("");const [dt,setDt]=useState("");const [tm,setTm]=useState("");const [ref,setRef]=useState("");const [err,setErr]=useState("");const [sub,setSub]=useState(false);
   const hasSp=cart.some(i=>i.category==="special"),ltc=parseInt(st.lead_time_classic||"0"),lts=parseInt(st.lead_time_special||"5"),ld=hasSp?lts:ltc,quota=parseInt(st.daily_quota||"20");
   const today=new Date(),minD=new Date(today);minD.setDate(minD.getDate()+ld);const minDS=minD.toISOString().split("T")[0];
   const ood=orders.filter(o=>o.pickup_date===dt).length,isFull=hasSp&&ood>=quota,isClosed=cd.some(d=>d.date===dt),sl=hasSp?Math.max(0,quota-ood):null;
-  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(hasSp&&!tm)return setErr("Jam ambil wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,time:tm,orderNum:on});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
+  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(hasSp&&!tm)return setErr("Jam ambil wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,time:tm,orderNum:on,referenceImage:ref});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
   return(<Shell title="Checkout" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     {hasSp&&<div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-2xl mb-5 border border-amber-100">ℹ️ Minimal H-{lts}</div>}
     <Inp label="Nama" required value={nm} onChange={e=>setNm(e.target.value)} placeholder="Nama lengkap"/>
     <Inp label="Nomor HP" required value={ph} onChange={e=>setPh(e.target.value)} placeholder="08xxxxxxxxxx" type="tel"/>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={dt} min={minDS} onChange={e=>setDt(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">{hasSp?`Minimal H-${lts}`:"Bisa same day"}</p></div>
-    {hasSp&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">Pilih jam yang diinginkan untuk pengambilan</p></div>}
+    {hasSp&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">Pilih jam yang diinginkan</p></div>}
+    {hasSp&&<ImgUp value={ref} onChange={setRef} label="Foto Referensi (opsional)"/>}
     {dt&&isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Tanggal tutup.</div>}
     {dt&&isFull&&!isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Slot penuh.</div>}
     {dt&&!isClosed&&!isFull&&sl!==null&&<div className={`text-sm px-4 py-3 rounded-2xl mb-4 border ${sl<=5?"bg-orange-50 text-orange-700 border-orange-100":"bg-emerald-50 text-emerald-700 border-emerald-100"}`}>{sl<=5?`⚡ Sisa ${sl} slot`:`✅ Tersedia (${sl} slot)`}</div>}
@@ -205,7 +231,7 @@ const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
   const timeStr=co.time?` pukul ${co.time}`:"";
   const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
-  const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:cart.map(i=>i.note).filter(Boolean).join("; "),pickup_date:co.date,status:"waiting"});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
+  const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:cart.map(i=>i.note).filter(Boolean).join("; "),pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
       <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
@@ -236,6 +262,7 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
       <p className="text-sm text-stone-600">👤 {o.customer_name} · 📱 {o.customer_phone}</p>
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
+      {o.reference_image&&<div className="mt-2"><p className="text-xs text-stone-400 mb-1">📷 Referensi:</p><img src={o.reference_image} alt="Referensi" className="w-32 h-32 object-cover rounded-lg border border-stone-200"/></div>}
       <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}</span></div>
       <div className="flex gap-2 mt-4">{sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?"💰 Tandai Bayar":o.status==="paid"?"⚙️ Proses":"✅ Selesai"}</Btn>}{o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}</div>
     </div>))}
@@ -297,13 +324,32 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const [v,setV]=useState(st);const [sv,setSv]=useState(false);
   const isOpen=v.store_open!=="false";
   const save=async(k,val)=>{setSv(true);try{await dbUS(k,val);setV(x=>({...x,[k]:val}));if(rf)rf();}catch{}setSv(false);};
+  const faqs=jp(v.faq_json,[]);
+  const addFAQ=()=>{const n=[...faqs,{q:"",a:""}];save("faq_json",JSON.stringify(n));};
+  const updFAQ=(i,k,val)=>{const n=faqs.map((f,j)=>j===i?{...f,[k]:val}:f);setV(x=>({...x,faq_json:JSON.stringify(n)}));};
+  const rmFAQ=(i)=>{const n=faqs.filter((_,j)=>j!==i);save("faq_json",JSON.stringify(n));};
+  const saveFAQ=()=>save("faq_json",v.faq_json);
   return(<div className="space-y-4">
-    <div className={`rounded-2xl p-5 border-2 flex items-center justify-between ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}>
-      <div><p className="font-bold text-stone-800">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-400 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div>
-      <button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup Toko":"Buka Toko"}</button>
-    </div>
+    <div className={`rounded-2xl p-5 border-2 flex items-center justify-between ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div><p className="font-bold text-stone-800">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-400 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup Toko":"Buka Toko"}</button></div>
+
     <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-4">Pengaturan</h3>
+      <h3 className="font-bold text-stone-800 mb-4">📍 Info Toko</h3>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tentang Toko</label><textarea value={v.store_about||""} onChange={e=>setV(x=>({...x,store_about:e.target.value}))} onBlur={()=>save("store_about",v.store_about||"")} rows={3} placeholder="Cerita singkat tentang toko..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Alamat</label><textarea value={v.store_address||""} onChange={e=>setV(x=>({...x,store_address:e.target.value}))} onBlur={()=>save("store_address",v.store_address||"")} rows={2} placeholder="Jl. ..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Link Google Maps</label><input value={v.store_maps_url||""} onChange={e=>setV(x=>({...x,store_maps_url:e.target.value}))} onBlur={()=>save("store_maps_url",v.store_maps_url||"")} placeholder="https://maps.app.goo.gl/..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Operasional</label><textarea value={v.store_hours||""} onChange={e=>setV(x=>({...x,store_hours:e.target.value}))} onBlur={()=>save("store_hours",v.store_hours||"")} rows={2} placeholder="Senin-Sabtu: 08:00-20:00" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Info Pembayaran</label><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Minimum Order</label><input value={v.store_minimum_order||""} onChange={e=>setV(x=>({...x,store_minimum_order:e.target.value}))} onBlur={()=>save("store_minimum_order",v.store_minimum_order||"")} placeholder="Contoh: Rp 50.000 untuk delivery" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+    </div>
+
+    <div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <h3 className="font-bold text-stone-800 mb-4">❓ FAQ</h3>
+      {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-3"><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-stone-500">Pertanyaan #{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:text-red-600 text-sm">🗑️</button></div><input value={f.q} onChange={e=>updFAQ(i,"q",e.target.value)} onBlur={saveFAQ} placeholder="Pertanyaan..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300"/><textarea value={f.a} onChange={e=>updFAQ(i,"a",e.target.value)} onBlur={saveFAQ} rows={2} placeholder="Jawaban..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>))}
+      <button onClick={addFAQ} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah FAQ</button>
+    </div>
+
+    <div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <h3 className="font-bold text-stone-800 mb-4">⚙️ Pengaturan Umum</h3>
       <ImgUp value={v.hero_bg||""} onChange={val=>save("hero_bg",val)} label="Background Homepage"/>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kuota Order/Hari</label><input type="number" value={v.daily_quota||"20"} onChange={e=>setV(x=>({...x,daily_quota:e.target.value}))} onBlur={()=>save("daily_quota",v.daily_quota)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
       <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Lead Time Classic (hari)</label><input type="number" value={v.lead_time_classic||"0"} onChange={e=>setV(x=>({...x,lead_time_classic:e.target.value}))} onBlur={()=>save("lead_time_classic",v.lead_time_classic)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><p className="text-xs text-stone-400 mt-1">0 = same day</p></div>
@@ -368,8 +414,10 @@ export default function App(){
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
+    {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
+    {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
     {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
