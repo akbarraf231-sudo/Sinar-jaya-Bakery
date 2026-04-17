@@ -158,6 +158,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
+    <div className="bg-amber-800 text-amber-50 text-center text-sm font-semibold py-2.5 px-4">Selamat datang di Sinar Jaya Bakery!</div>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
       <div className="relative z-10"><p className="text-amber-200/80 text-xs tracking-[0.2em] uppercase mb-3 font-medium">Homemade Bakery</p><h1 className="text-3xl font-bold mb-2 tracking-tight">Sinar Jaya Bakery</h1><p className="text-amber-100/70 text-sm mb-4 max-w-xs mx-auto leading-relaxed">Menyempurnakan setiap momen spesial dengan kue buatan tangan penuh cinta</p>
         <div className="flex justify-center gap-6 mb-4 text-amber-100/80 text-xs"><span>🌿 Fresh Daily</span><span>🎨 Custom Order</span><span>❤️ Homemade</span></div></div></div>
