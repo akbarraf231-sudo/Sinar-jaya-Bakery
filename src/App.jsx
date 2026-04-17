@@ -29,7 +29,11 @@ const dbUP = (id,p) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", bod
 const dbDP = (id) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", body:{is_active:false}, ...H() });
 const dbSO = (id,v) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", body:{is_sold_out:v}, ...H() });
 const dbTD = async (ds) => { const e=await sb(`/rest/v1/closed_dates?date=eq.${ds}`,H()); if(e&&e.length>0){await sb(`/rest/v1/closed_dates?date=eq.${ds}`,{method:"DELETE"});return false;}else{await sb("/rest/v1/closed_dates",{method:"POST",body:{date:ds},...H()});return true;} };
-const dbUS = (k,v) => sb("/rest/v1/settings", { method:"POST", body:{key:k,value:v}, headers:{Prefer:"return=representation,resolution=merge-duplicates"} });
+const dbUS = async (k,v) => {
+  const existing = await sb(`/rest/v1/settings?key=eq.${k}&select=key`, H());
+  if (existing && existing.length > 0) return sb(`/rest/v1/settings?key=eq.${k}`, { method:"PATCH", body:{value:v}, ...H() });
+  return sb("/rest/v1/settings", { method:"POST", body:{key:k,value:v}, ...H() });
+};
 const dbGN = () => sb("/rest/v1/rpc/generate_order_number", { method:"POST", body:{} });
 
 const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
@@ -386,9 +390,9 @@ const AStats = ({orders}) => {
 };
 
 const ASettings = ({settings:st,onRefresh:rf}) => {
-  const [v,setV]=useState(st);const [sv,setSv]=useState(false);
+  const [v,setV]=useState(st);const [sv,setSv]=useState(false);const [saveErr,setSaveErr]=useState("");
   const isOpen=v.store_open!=="false";
-  const save=async(k,val)=>{setSv(true);try{await dbUS(k,val);setV(x=>({...x,[k]:val}));if(rf)rf();}catch{}setSv(false);};
+  const save=async(k,val)=>{setSv(true);setSaveErr("");try{await dbUS(k,val);setV(x=>({...x,[k]:val}));if(rf)rf();}catch(e){setSaveErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
   const faqs=jp(v.faq_json,[]);
   const addFAQ=()=>{const n=[...faqs,{q:"",a:""}];save("faq_json",JSON.stringify(n));};
   const updFAQ=(i,k,val)=>{const n=faqs.map((f,j)=>j===i?{...f,[k]:val}:f);setV(x=>({...x,faq_json:JSON.stringify(n)}));};
@@ -402,6 +406,7 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const rmVoucher=(i)=>{if(!confirm("Hapus voucher ini?"))return;persistVouchers(vouchers.filter((_,j)=>j!==i));};
   const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
   return(<div className="space-y-4">
+    {saveErr&&<div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200">⚠️ {saveErr}</div>}
     <div className={`rounded-2xl p-5 border-2 flex items-center justify-between ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div><p className="font-bold text-stone-800">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-400 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup Toko":"Buka Toko"}</button></div>
 
     <div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -424,8 +429,8 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
       <h3 className="font-bold text-stone-800 mb-1">🎟️ Kode Voucher / Promo</h3>
       <p className="text-xs text-stone-400 mb-4">Kode yang aktif dapat digunakan customer saat checkout</p>
       {vouchers.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada voucher</p>}
-      {vouchers.map((vc,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
-        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-2"><span className="text-xs font-semibold text-stone-500">Voucher #{i+1}</span><label className="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" checked={vc.active!==false} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-4 h-4 accent-amber-700"/><span className={vc.active!==false?"text-emerald-700 font-semibold":"text-stone-400"}>{vc.active!==false?"Aktif":"Nonaktif"}</span></label></div><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:text-red-600 text-sm">🗑️</button></div>
+      {vouchers.map((vc,i)=>{const expired=vc.expiresAt&&new Date(vc.expiresAt+"T23:59:59")<new Date();return(<div key={i} className={`mb-3 bg-stone-50 rounded-2xl p-4 border ${expired?"border-red-200":"border-stone-100"}`}>
+        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-semibold text-stone-500">Voucher #{i+1}</span><label className="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" checked={vc.active!==false} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-4 h-4 accent-amber-700"/><span className={vc.active!==false?"text-emerald-700 font-semibold":"text-stone-400"}>{vc.active!==false?"Aktif":"Nonaktif"}</span></label>{expired&&<span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">⚠️ Kedaluwarsa</span>}</div><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:text-red-600 text-sm" title="Hapus voucher">🗑️</button></div>
         <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Kode</label><input value={vc.code||""} onChange={e=>updVoucher(i,"code",e.target.value.toUpperCase())} onBlur={saveVouchers} placeholder="HEMAT10" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white font-mono uppercase focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div><label className="block text-xs font-medium text-stone-500 mb-1">Tipe</label><select value={vc.type||"percentage"} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,type:e.target.value}:x);persistVouchers(n);}} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="percentage">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></div>
@@ -437,7 +442,7 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
         </div>
         <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Berlaku sampai <span className="text-stone-400">(opsional)</span></label><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
         <div><label className="block text-xs font-medium text-stone-500 mb-1">Deskripsi <span className="text-stone-400">(opsional)</span></label><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      </div>))}
+      </div>);})}
       <button onClick={addVoucher} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Voucher</button>
     </div>
 
