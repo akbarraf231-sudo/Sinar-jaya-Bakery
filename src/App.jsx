@@ -29,12 +29,27 @@ const dbUP = (id,p) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", bod
 const dbDP = (id) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", body:{is_active:false}, ...H() });
 const dbSO = (id,v) => sb(`/rest/v1/products?id=eq.${id}`, { method:"PATCH", body:{is_sold_out:v}, ...H() });
 const dbTD = async (ds) => { const e=await sb(`/rest/v1/closed_dates?date=eq.${ds}`,H()); if(e&&e.length>0){await sb(`/rest/v1/closed_dates?date=eq.${ds}`,{method:"DELETE"});return false;}else{await sb("/rest/v1/closed_dates",{method:"POST",body:{date:ds},...H()});return true;} };
-const dbUS = (k,v) => sb(`/rest/v1/settings?key=eq.${k}`, { method:"PATCH", body:{value:v}, ...H() });
+const dbUS = (k,v) => sb("/rest/v1/settings", { method:"POST", body:{key:k,value:v}, headers:{Prefer:"return=representation,resolution=merge-duplicates"} });
 const dbGN = () => sb("/rest/v1/rpc/generate_order_number", { method:"POST", body:{} });
 
 const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
 const dfmt = (d) => { const D=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"],M=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]; return `${D[d.getDay()]}, ${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()}`; };
 const jp = (v,fb=[]) => { if(!v) return fb; if(typeof v==="string") try{return JSON.parse(v)}catch{return fb;} return v; };
+
+const applyVoucher = (code,list,subtotal) => {
+  if(!code||!code.trim()) return {ok:false,err:"",discount:0,voucher:null};
+  const v=(list||[]).find(x=>(x.code||"").toUpperCase()===code.trim().toUpperCase());
+  if(!v) return {ok:false,err:"Kode voucher tidak ditemukan",discount:0,voucher:null};
+  if(v.active===false) return {ok:false,err:"Kode voucher tidak aktif",discount:0,voucher:null};
+  if(v.expiresAt){const ex=new Date(v.expiresAt+"T23:59:59");if(new Date()>ex) return {ok:false,err:"Kode voucher sudah kedaluwarsa",discount:0,voucher:null};}
+  const minO=Number(v.minOrder)||0;
+  if(minO>0&&subtotal<minO) return {ok:false,err:`Minimal order ${fmt(minO)}`,discount:0,voucher:null};
+  let discount=v.type==="fixed"?Number(v.value)||0:Math.round(subtotal*(Number(v.value)||0)/100);
+  const cap=Number(v.maxDiscount)||0;
+  if(v.type==="percentage"&&cap>0) discount=Math.min(discount,cap);
+  discount=Math.max(0,Math.min(discount,subtotal));
+  return {ok:true,err:"",discount,voucher:v};
+};
 
 const Img = ({name,color,img,size="md"}) => {
   const s={sm:"h-16 w-16 rounded-2xl",md:"h-36 w-full rounded-none",lg:"h-52 w-full rounded-none"};
@@ -143,6 +158,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
+    <div className="bg-amber-800 text-amber-50 text-center text-sm font-semibold py-2.5 px-4">Selamat datang di Sinar Jaya Bakery!</div>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
       <div className="relative z-10"><p className="text-amber-200/80 text-xs tracking-[0.2em] uppercase mb-3 font-medium">Homemade Bakery</p><h1 className="text-3xl font-bold mb-2 tracking-tight">Sinar Jaya Bakery</h1><p className="text-amber-100/70 text-sm mb-4 max-w-xs mx-auto leading-relaxed">Menyempurnakan setiap momen spesial dengan kue buatan tangan penuh cinta</p>
         <div className="flex justify-center gap-6 mb-4 text-amber-100/80 text-xs"><span>🌿 Fresh Daily</span><span>🎨 Custom Order</span><span>❤️ Homemade</span></div></div></div>
@@ -213,10 +229,16 @@ const Cart = ({cart,dispatch:d,onCheckout,onBack,onHome}) => {
 
 const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome}) => {
   const [nm,setNm]=useState("");const [ph,setPh]=useState("");const [dt,setDt]=useState("");const [tm,setTm]=useState("");const [ref,setRef]=useState("");const [err,setErr]=useState("");const [sub,setSub]=useState(false);
+  const [vCode,setVCode]=useState("");const [vApplied,setVApplied]=useState(null);const [vErr,setVErr]=useState("");
   const hasSp=cart.some(i=>i.category==="special"),ltc=parseInt(st.lead_time_classic||"0"),lts=parseInt(st.lead_time_special||"5"),ld=hasSp?lts:ltc,quota=parseInt(st.daily_quota||"20");
   const today=new Date(),minD=new Date(today);minD.setDate(minD.getDate()+ld);const minDS=minD.toISOString().split("T")[0];
   const ood=orders.filter(o=>o.pickup_date===dt).length,isFull=hasSp&&ood>=quota,isClosed=cd.some(d=>d.date===dt),sl=hasSp?Math.max(0,quota-ood):null;
-  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(hasSp&&!tm)return setErr("Jam ambil wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,time:tm,orderNum:on,referenceImage:ref});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
+  const subtotal=cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
+  const voucherList=jp(st.vouchers_json,[]);
+  const discount=vApplied?vApplied.discount:0,grandTotal=Math.max(0,subtotal-discount);
+  const applyCode=()=>{const r=applyVoucher(vCode,voucherList,subtotal);if(!r.ok){setVErr(r.err||"Kode tidak valid");setVApplied(null);return;}setVErr("");setVApplied({code:r.voucher.code,discount:r.discount,type:r.voucher.type,value:r.voucher.value});};
+  const removeVoucher=()=>{setVApplied(null);setVCode("");setVErr("");};
+  const go=async()=>{if(!nm.trim())return setErr("Nama wajib diisi");if(!ph.trim())return setErr("Nomor HP wajib diisi");if(!dt)return setErr("Tanggal wajib dipilih");if(hasSp&&!tm)return setErr("Jam ambil wajib dipilih");if(isClosed)return setErr("Tanggal tutup");if(isFull)return setErr("Slot penuh");setErr("");setSub(true);try{const on=await dbGN();onSubmit({name:nm.trim(),phone:ph.trim(),date:dt,time:tm,orderNum:on,referenceImage:ref,voucher:vApplied,subtotal,discount,total:grandTotal});}catch{setErr("Gagal, coba lagi.");}setSub(false);};
   return(<Shell title="Checkout" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     {hasSp&&<div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-2xl mb-5 border border-amber-100">ℹ️ Minimal H-{lts}</div>}
     <Inp label="Nama" required value={nm} onChange={e=>setNm(e.target.value)} placeholder="Nama lengkap"/>
@@ -224,6 +246,20 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={dt} min={minDS} onChange={e=>setDt(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">{hasSp?`Minimal H-${lts}`:"Bisa same day"}</p></div>
     {hasSp&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Ambil<span className="text-red-400 ml-0.5">*</span></label><input type="time" value={tm} onChange={e=>setTm(e.target.value)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1.5">Pilih jam yang diinginkan</p></div>}
     {hasSp&&<ImgUp value={ref} onChange={setRef} label="Foto Referensi (opsional)"/>}
+
+    <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">🎟️ Kode Voucher <span className="text-stone-400 font-normal text-xs">(opsional)</span></label>
+      {vApplied?(<div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between"><div><p className="text-sm font-bold text-emerald-800">✓ {vApplied.code}</p><p className="text-xs text-emerald-700 mt-0.5">Diskon {fmt(vApplied.discount)} {vApplied.type==="percentage"?`(-${vApplied.value}%)`:""}</p></div><button onClick={removeVoucher} className="text-xs text-red-500 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Hapus</button></div>):(<>
+        <div className="flex gap-2"><input value={vCode} onChange={e=>{setVCode(e.target.value.toUpperCase());setVErr("")}} placeholder="Masukkan kode promo" className="flex-1 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition uppercase"/><Btn onClick={applyCode} variant="secondary" disabled={!vCode.trim()}>Pakai</Btn></div>
+        {vErr&&<p className="text-xs text-red-500 mt-1.5">⚠️ {vErr}</p>}
+      </>)}
+    </div>
+
+    <div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4 space-y-1.5 text-sm">
+      <div className="flex justify-between text-stone-600"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+      {discount>0&&<div className="flex justify-between text-emerald-600"><span>Diskon voucher</span><span>−{fmt(discount)}</span></div>}
+      <div className="flex justify-between pt-1.5 border-t border-stone-100 font-bold text-stone-800"><span>Total</span><span className="text-amber-800">{fmt(grandTotal)}</span></div>
+    </div>
+
     {dt&&isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Tanggal tutup.</div>}
     {dt&&isFull&&!isClosed&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">❌ Slot penuh.</div>}
     {dt&&!isClosed&&!isFull&&sl!==null&&<div className={`text-sm px-4 py-3 rounded-2xl mb-4 border ${sl<=5?"bg-orange-50 text-orange-700 border-orange-100":"bg-emerald-50 text-emerald-700 border-emerald-100"}`}>{sl<=5?`⚡ Sisa ${sl} slot`:`✅ Tersedia (${sl} slot)`}</div>}
@@ -233,15 +269,22 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
 
 const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
-  const tot=cart.reduce((s,i)=>s+i.unitPrice*i.qty,0),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
+  const sub=co.subtotal||cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
+  const disc=co.discount||0,tot=co.total!=null?co.total:Math.max(0,sub-disc),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
   const timeStr=co.time?` pukul ${co.time}`:"";
-  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
+  const voucherLine=co.voucher?`%0AVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
+  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
-  const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:cart.map(i=>i.note).filter(Boolean).join("; "),pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
+  const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:""].filter(Boolean).join(" ");
+  const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
       <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
-      <div className="border-t border-stone-200 pt-4 flex justify-between items-center mb-5"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
+      <div className="border-t border-stone-200 pt-4 space-y-1.5 text-sm mb-5">
+        <div className="flex justify-between text-stone-600"><span>Subtotal</span><span>{fmt(sub)}</span></div>
+        {disc>0&&<div className="flex justify-between text-emerald-600"><span>🎟️ {co.voucher?.code}</span><span>−{fmt(disc)}</span></div>}
+        <div className="flex justify-between pt-2 border-t border-stone-100"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
+      </div>
       <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
     <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":"📲 Kirim ke WhatsApp"}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
@@ -352,6 +395,13 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const updFAQ=(i,k,val)=>{const n=faqs.map((f,j)=>j===i?{...f,[k]:val}:f);setV(x=>({...x,faq_json:JSON.stringify(n)}));};
   const rmFAQ=(i)=>{const n=faqs.filter((_,j)=>j!==i);save("faq_json",JSON.stringify(n));};
   const saveFAQ=()=>save("faq_json",v.faq_json);
+
+  const vouchers=jp(v.vouchers_json,[]);
+  const persistVouchers=(arr)=>save("vouchers_json",JSON.stringify(arr));
+  const addVoucher=()=>persistVouchers([...vouchers,{code:"",type:"percentage",value:10,minOrder:0,maxDiscount:0,expiresAt:"",active:true,description:""}]);
+  const updVoucher=(i,k,val)=>{const n=vouchers.map((vc,j)=>j===i?{...vc,[k]:val}:vc);setV(x=>({...x,vouchers_json:JSON.stringify(n)}));};
+  const rmVoucher=(i)=>{if(!confirm("Hapus voucher ini?"))return;persistVouchers(vouchers.filter((_,j)=>j!==i));};
+  const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
   return(<div className="space-y-4">
     <div className={`rounded-2xl p-5 border-2 flex items-center justify-between ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div><p className="font-bold text-stone-800">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-400 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup Toko":"Buka Toko"}</button></div>
 
@@ -369,6 +419,27 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
       <h3 className="font-bold text-stone-800 mb-4">❓ FAQ</h3>
       {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-3"><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-stone-500">Pertanyaan #{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:text-red-600 text-sm">🗑️</button></div><input value={f.q} onChange={e=>updFAQ(i,"q",e.target.value)} onBlur={saveFAQ} placeholder="Pertanyaan..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300"/><textarea value={f.a} onChange={e=>updFAQ(i,"a",e.target.value)} onBlur={saveFAQ} rows={2} placeholder="Jawaban..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>))}
       <button onClick={addFAQ} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah FAQ</button>
+    </div>
+
+    <div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <h3 className="font-bold text-stone-800 mb-1">🎟️ Kode Voucher / Promo</h3>
+      <p className="text-xs text-stone-400 mb-4">Kode yang aktif dapat digunakan customer saat checkout</p>
+      {vouchers.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada voucher</p>}
+      {vouchers.map((vc,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-2"><span className="text-xs font-semibold text-stone-500">Voucher #{i+1}</span><label className="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" checked={vc.active!==false} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-4 h-4 accent-amber-700"/><span className={vc.active!==false?"text-emerald-700 font-semibold":"text-stone-400"}>{vc.active!==false?"Aktif":"Nonaktif"}</span></label></div><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:text-red-600 text-sm">🗑️</button></div>
+        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Kode</label><input value={vc.code||""} onChange={e=>updVoucher(i,"code",e.target.value.toUpperCase())} onBlur={saveVouchers} placeholder="HEMAT10" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white font-mono uppercase focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div><label className="block text-xs font-medium text-stone-500 mb-1">Tipe</label><select value={vc.type||"percentage"} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,type:e.target.value}:x);persistVouchers(n);}} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="percentage">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></div>
+          <div><label className="block text-xs font-medium text-stone-500 mb-1">{vc.type==="fixed"?"Potongan (Rp)":"Persen (%)"}</label><input type="number" min="0" value={vc.value||0} onChange={e=>updVoucher(i,"value",parseInt(e.target.value)||0)} onBlur={saveVouchers} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div><label className="block text-xs font-medium text-stone-500 mb-1">Min. Order (Rp)</label><input type="number" min="0" value={vc.minOrder||0} onChange={e=>updVoucher(i,"minOrder",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+          {vc.type==="percentage"&&<div><label className="block text-xs font-medium text-stone-500 mb-1">Maks. Diskon (Rp)</label><input type="number" min="0" value={vc.maxDiscount||0} onChange={e=>updVoucher(i,"maxDiscount",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0 = tanpa batas" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>}
+        </div>
+        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Berlaku sampai <span className="text-stone-400">(opsional)</span></label><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        <div><label className="block text-xs font-medium text-stone-500 mb-1">Deskripsi <span className="text-stone-400">(opsional)</span></label><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      </div>))}
+      <button onClick={addVoucher} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Voucher</button>
     </div>
 
     <div className="bg-white rounded-2xl p-5 border border-stone-100">
