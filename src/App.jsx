@@ -450,10 +450,9 @@ const ACal = ({closedDates:cd,orders,quota,onToggle}) => {
     <div className="flex gap-4 mt-4 text-xs text-stone-400"><span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-100 rounded-md"/> Tutup</span><span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-orange-100 rounded-md"/> Penuh</span></div></div>);
 };
 
-const AStats = ({orders,settings:st,onRefresh:rf}) => {
+const AStats = ({orders}) => {
   const today=new Date().toISOString().split("T")[0],tm=today.slice(0,7),ps=["paid","process","done","archived"];
-  const watermark=parseInt(st?.stats_reset_id||"0");
-  const scoped=orders.filter(o=>o.id>watermark);
+  const scoped=orders||[];
   const dr=scoped.filter(o=>o.order_date===today&&ps.includes(o.status)).reduce((s,o)=>s+o.total,0);
   const mr=scoped.filter(o=>(o.order_date||"").startsWith(tm)&&ps.includes(o.status)).reduce((s,o)=>s+o.total,0);
   const up=scoped.filter(o=>o.status==="waiting").reduce((s,o)=>s+o.total,0);
@@ -462,13 +461,10 @@ const AStats = ({orders,settings:st,onRefresh:rf}) => {
   const ordersToday=scoped.filter(o=>o.order_date===today&&ps.includes(o.status)).length;
   const ordersMonth=scoped.filter(o=>(o.order_date||"").startsWith(tm)&&ps.includes(o.status)).length;
   const pc={};scoped.forEach(o=>(o.items||[]).forEach(it=>{pc[it.name]=(pc[it.name]||0)+it.qty;}));const rk=Object.entries(pc).sort((a,b)=>b[1]-a[1]);
-  const doReset=async()=>{if(!confirm("Reset statistik ke 0? Data pesanan lama tetap tersimpan, hanya tidak dihitung di statistik."))return;const maxId=orders.reduce((m,o)=>Math.max(m,o.id||0),0);try{await dbUS("stats_reset_id",String(maxId));if(rf)await rf();}catch{alert("Gagal reset, coba lagi.");}};
-  const undoReset=async()=>{try{await dbUS("stats_reset_id","0");if(rf)await rf();}catch{alert("Gagal, coba lagi.");}};
   return(<div>
     <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-white rounded-2xl p-5 text-center shadow-sm border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Omzet Hari Ini</p><p className="text-lg font-bold text-emerald-600">{fmt(dr)}</p></div><div className="bg-white rounded-2xl p-5 text-center shadow-sm border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Omzet Bulan Ini</p><p className="text-lg font-bold text-emerald-600">{fmt(mr)}</p></div></div>
     <div className="bg-orange-50 rounded-2xl p-5 mb-4 text-center border border-orange-100"><p className="text-[11px] text-stone-400 mb-1">Belum Dibayar</p><p className="text-lg font-bold text-orange-600">{fmt(up)}</p></div>
     <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-stone-100"><h3 className="font-bold text-sm text-stone-800 mb-3">📦 Total Pesanan & Pelanggan</h3><div className="grid grid-cols-2 gap-3"><div className="text-center"><div className="flex items-center justify-center gap-2 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"/><p className="text-[11px] text-stone-400">Total Pesanan</p></div><p className="text-2xl font-bold text-stone-800">{totalOrders}</p><p className="text-[10px] text-stone-400 mt-0.5">{ordersToday} hari ini · {ordersMonth} bulan ini</p></div><div className="text-center"><div className="flex items-center justify-center gap-2 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/><p className="text-[11px] text-stone-400">Pelanggan Unik</p></div><p className="text-2xl font-bold text-stone-800">{uniqueCust}</p><p className="text-[10px] text-stone-400 mt-0.5">berdasarkan No HP</p></div></div></div>
-    <div className="bg-stone-50 rounded-2xl p-4 mb-5 border border-stone-100 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-stone-600">🔄 Reset Statistik</p><p className="text-[11px] text-stone-400 mt-0.5">{watermark>0?`Terpasang dari order #${watermark}`:"Hitung semua pesanan"}</p></div>{watermark>0?<button onClick={undoReset} className="text-xs font-semibold text-amber-700 hover:text-amber-900 px-3 py-2 rounded-lg hover:bg-amber-50 transition whitespace-nowrap">Batalkan Reset</button>:<button onClick={doReset} className="text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 px-3 py-2 rounded-lg transition whitespace-nowrap">Reset ke 0</button>}</div>
     <h3 className="font-bold text-sm text-stone-800 mb-3">🏆 Produk Terlaris</h3>{rk.length===0?<p className="text-sm text-stone-400">Belum ada data</p>:rk.map(([n,c],i)=>(<div key={n} className="bg-white rounded-2xl p-4 mb-2 flex items-center justify-between shadow-sm border border-stone-100"><div className="flex items-center gap-3"><span className="text-sm font-bold text-stone-300 w-6">#{i+1}</span><span className="text-sm font-semibold text-stone-800">{n}</span></div><span className="text-sm text-amber-800 font-bold">{c}×</span></div>))}
   </div>);
 };
@@ -678,7 +674,7 @@ const APembukuan = ({products,orders,settings:st,onRefresh:rf}) => {
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">{subs.map(s=>(<button key={s.id} onClick={()=>setSub(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sub===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.l}</button>))}</div>
     </div>
     {sub==="report"&&<AReport orders={orders} settings={st}/>}
-    {sub==="stats"&&<AStats orders={orders} settings={st} onRefresh={rf}/>}
+    {sub==="stats"&&<AStats orders={orders}/>}
     {sub==="purchase"&&<APurchases products={products} settings={st} onRefresh={rf}/>}
     {sub==="expense"&&<AExpenses settings={st} onRefresh={rf}/>}
   </div>);
