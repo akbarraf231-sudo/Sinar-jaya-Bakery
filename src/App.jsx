@@ -457,13 +457,14 @@ const AStats = ({orders,settings:st,onRefresh:rf}) => {
 };
 
 const ASettings = ({settings:st,onRefresh:rf}) => {
-  const [v,setV]=useState(st);const [sv,setSv]=useState(false);const [saveErr,setSaveErr]=useState("");
+  const [v,setV]=useState(st);const [sv,setSv]=useState(false);const [saveErr,setSaveErr]=useState("");const [saved,setSaved]=useState(false);
+  const [sec,setSec]=useState("store");
   const isOpen=v.store_open!=="false";
-  const save=async(k,val)=>{setSv(true);setSaveErr("");try{await dbUS(k,val);setV(x=>({...x,[k]:val}));if(rf)rf();}catch(e){setSaveErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
+  const save=async(k,val)=>{setSv(true);setSaveErr("");setSaved(false);try{await dbUS(k,val);setV(x=>({...x,[k]:val}));setSaved(true);setTimeout(()=>setSaved(false),1800);if(rf)rf();}catch(e){setSaveErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
   const faqs=jp(v.faq_json,[]);
   const addFAQ=()=>{const n=[...faqs,{q:"",a:""}];save("faq_json",JSON.stringify(n));};
   const updFAQ=(i,k,val)=>{const n=faqs.map((f,j)=>j===i?{...f,[k]:val}:f);setV(x=>({...x,faq_json:JSON.stringify(n)}));};
-  const rmFAQ=(i)=>{const n=faqs.filter((_,j)=>j!==i);save("faq_json",JSON.stringify(n));};
+  const rmFAQ=(i)=>{if(!confirm("Hapus FAQ ini?"))return;const n=faqs.filter((_,j)=>j!==i);save("faq_json",JSON.stringify(n));};
   const saveFAQ=()=>save("faq_json",v.faq_json);
 
   const vouchers=jp(v.vouchers_json,[]);
@@ -472,55 +473,71 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const updVoucher=(i,k,val)=>{const n=vouchers.map((vc,j)=>j===i?{...vc,[k]:val}:vc);setV(x=>({...x,vouchers_json:JSON.stringify(n)}));};
   const rmVoucher=(i)=>{if(!confirm("Hapus voucher ini?"))return;persistVouchers(vouchers.filter((_,j)=>j!==i));};
   const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
+
+  const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
+  const iptCls="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
+  const Field=({label,hint,children})=><div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>;
+
   return(<div className="space-y-4">
+    <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-500 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup":"Buka"}</button></div>
+
+    <div className="sticky top-[60px] z-20 -mx-4 px-4 py-2 bg-stone-50/95 backdrop-blur-sm border-b border-stone-100">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">{secs.map(s=>(<button key={s.id} onClick={()=>setSec(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sec===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.label}{s.count>0&&<span className={`text-[10px] px-1.5 py-0.5 rounded-full ${sec===s.id?"bg-white/20":"bg-stone-100 text-stone-500"}`}>{s.count}</span>}</button>))}</div>
+    </div>
+
     {saveErr&&<div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200">⚠️ {saveErr}</div>}
-    <div className={`rounded-2xl p-5 border-2 flex items-center justify-between ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div><p className="font-bold text-stone-800">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-400 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup Toko":"Buka Toko"}</button></div>
 
-    <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-4">📍 Info Toko</h3>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tentang Toko</label><textarea value={v.store_about||""} onChange={e=>setV(x=>({...x,store_about:e.target.value}))} onBlur={()=>save("store_about",v.store_about||"")} rows={3} placeholder="Cerita singkat tentang toko..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Alamat</label><textarea value={v.store_address||""} onChange={e=>setV(x=>({...x,store_address:e.target.value}))} onBlur={()=>save("store_address",v.store_address||"")} rows={2} placeholder="Jl. ..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Link Google Maps</label><input value={v.store_maps_url||""} onChange={e=>setV(x=>({...x,store_maps_url:e.target.value}))} onBlur={()=>save("store_maps_url",v.store_maps_url||"")} placeholder="https://maps.app.goo.gl/..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Jam Operasional</label><textarea value={v.store_hours||""} onChange={e=>setV(x=>({...x,store_hours:e.target.value}))} onBlur={()=>save("store_hours",v.store_hours||"")} rows={2} placeholder="Senin-Sabtu: 08:00-20:00" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Info Pembayaran</label><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Minimum Order</label><input value={v.store_minimum_order||""} onChange={e=>setV(x=>({...x,store_minimum_order:e.target.value}))} onBlur={()=>save("store_minimum_order",v.store_minimum_order||"")} placeholder="Contoh: Rp 50.000 untuk delivery" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-    </div>
+    {sec==="store"&&<>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center gap-2 mb-4"><span className="text-lg">🖼️</span><h3 className="font-bold text-stone-800 text-sm">Tampilan Homepage</h3></div>
+        <ImgUp value={v.hero_bg||""} onChange={val=>save("hero_bg",val)} label="Background Beranda"/>
+      </div>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center gap-2 mb-4"><span className="text-lg">📍</span><h3 className="font-bold text-stone-800 text-sm">Info Toko</h3></div>
+        <Field label="Tentang Toko" hint="Cerita singkat yang tampil di halaman Info"><textarea value={v.store_about||""} onChange={e=>setV(x=>({...x,store_about:e.target.value}))} onBlur={()=>save("store_about",v.store_about||"")} rows={3} placeholder="Sinar Jaya Bakery menyajikan kue homemade..." className={iptCls}/></Field>
+        <Field label="Alamat"><textarea value={v.store_address||""} onChange={e=>setV(x=>({...x,store_address:e.target.value}))} onBlur={()=>save("store_address",v.store_address||"")} rows={2} placeholder="Jl. ..." className={iptCls}/></Field>
+        <Field label="Link Google Maps" hint="Tombol 'Buka di Maps' akan mengarah ke link ini"><input value={v.store_maps_url||""} onChange={e=>setV(x=>({...x,store_maps_url:e.target.value}))} onBlur={()=>save("store_maps_url",v.store_maps_url||"")} placeholder="https://maps.app.goo.gl/..." className={iptCls}/></Field>
+        <Field label="Jam Operasional"><textarea value={v.store_hours||""} onChange={e=>setV(x=>({...x,store_hours:e.target.value}))} onBlur={()=>save("store_hours",v.store_hours||"")} rows={2} placeholder="Senin–Sabtu: 08:00–20:00" className={iptCls}/></Field>
+        <Field label="Info Pembayaran" hint="Nomor rekening, QRIS, dll"><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className={iptCls}/></Field>
+        <Field label="Minimum Order"><input value={v.store_minimum_order||""} onChange={e=>setV(x=>({...x,store_minimum_order:e.target.value}))} onBlur={()=>save("store_minimum_order",v.store_minimum_order||"")} placeholder="Contoh: Rp 50.000 untuk delivery" className={iptCls}/></Field>
+      </div>
+    </>}
 
-    <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-4">❓ FAQ</h3>
-      {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-3"><div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-stone-500">Pertanyaan #{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:text-red-600 text-sm">🗑️</button></div><input value={f.q} onChange={e=>updFAQ(i,"q",e.target.value)} onBlur={saveFAQ} placeholder="Pertanyaan..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300"/><textarea value={f.a} onChange={e=>updFAQ(i,"a",e.target.value)} onBlur={saveFAQ} rows={2} placeholder="Jawaban..." className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>))}
-      <button onClick={addFAQ} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah FAQ</button>
-    </div>
+    {sec==="general"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <div className="flex items-center gap-2 mb-4"><span className="text-lg">⚙️</span><h3 className="font-bold text-stone-800 text-sm">Pengaturan Umum</h3></div>
+      <div className="grid grid-cols-2 gap-3 mb-2">
+        <Field label="Kuota Order/Hari" hint="Khusus Special"><input type="number" min="1" value={v.daily_quota||"20"} onChange={e=>setV(x=>({...x,daily_quota:e.target.value}))} onBlur={()=>save("daily_quota",v.daily_quota)} className={iptCls}/></Field>
+        <Field label="Lead Time Daily/Savory" hint="0 = bisa same day"><div className="relative"><input type="number" min="0" value={v.lead_time_classic||"0"} onChange={e=>setV(x=>({...x,lead_time_classic:e.target.value}))} onBlur={()=>save("lead_time_classic",v.lead_time_classic)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
+      </div>
+      <Field label="Lead Time Special" hint="Minimum H-n untuk kategori Special"><div className="relative max-w-[50%]"><input type="number" min="0" value={v.lead_time_special||"5"} onChange={e=>setV(x=>({...x,lead_time_special:e.target.value}))} onBlur={()=>save("lead_time_special",v.lead_time_special)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
+    </div>}
 
-    <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-1">🎟️ Kode Voucher / Promo</h3>
-      <p className="text-xs text-stone-400 mb-4">Kode yang aktif dapat digunakan customer saat checkout</p>
-      {vouchers.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada voucher</p>}
-      {vouchers.map((vc,i)=>{const expired=vc.expiresAt&&new Date(vc.expiresAt+"T23:59:59")<new Date();return(<div key={i} className={`mb-3 bg-stone-50 rounded-2xl p-4 border ${expired?"border-red-200":"border-stone-100"}`}>
-        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-semibold text-stone-500">Voucher #{i+1}</span><label className="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" checked={vc.active!==false} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-4 h-4 accent-amber-700"/><span className={vc.active!==false?"text-emerald-700 font-semibold":"text-stone-400"}>{vc.active!==false?"Aktif":"Nonaktif"}</span></label>{expired&&<span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">⚠️ Kedaluwarsa</span>}</div><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:text-red-600 text-sm" title="Hapus voucher">🗑️</button></div>
-        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Kode</label><input value={vc.code||""} onChange={e=>updVoucher(i,"code",e.target.value.toUpperCase())} onBlur={saveVouchers} placeholder="HEMAT10" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white font-mono uppercase focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <div><label className="block text-xs font-medium text-stone-500 mb-1">Tipe</label><select value={vc.type||"percentage"} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,type:e.target.value}:x);persistVouchers(n);}} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="percentage">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></div>
-          <div><label className="block text-xs font-medium text-stone-500 mb-1">{vc.type==="fixed"?"Potongan (Rp)":"Persen (%)"}</label><input type="number" min="0" value={vc.value||0} onChange={e=>updVoucher(i,"value",parseInt(e.target.value)||0)} onBlur={saveVouchers} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+    {sec==="voucher"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className="text-lg">🎟️</span><div><h3 className="font-bold text-stone-800 text-sm">Kode Voucher</h3><p className="text-[11px] text-stone-400">Bisa dipakai customer saat checkout</p></div></div><button onClick={addVoucher} className="text-xs font-bold text-white bg-amber-800 hover:bg-amber-900 px-3 py-2 rounded-xl transition">+ Tambah</button></div>
+      {vouchers.length===0&&<div className="text-center py-8 text-stone-300"><p className="text-3xl mb-2">🎟️</p><p className="text-sm text-stone-400">Belum ada voucher</p></div>}
+      {vouchers.map((vc,i)=>{const expired=vc.expiresAt&&new Date(vc.expiresAt+"T23:59:59")<new Date();const active=vc.active!==false;return(<div key={i} className={`mb-3 rounded-2xl p-4 border-2 ${expired?"bg-red-50/50 border-red-200":active?"bg-emerald-50/30 border-emerald-200":"bg-stone-50 border-stone-200"}`}>
+        <div className="flex items-center justify-between mb-3 gap-2"><div className="flex items-center gap-2 flex-wrap min-w-0"><span className={`text-xs font-mono font-bold px-2 py-1 rounded-md ${active&&!expired?"bg-emerald-100 text-emerald-800":"bg-stone-200 text-stone-500"}`}>{vc.code||"KODE"}</span>{expired&&<span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Kedaluwarsa</span>}{!active&&!expired&&<span className="text-[10px] font-semibold bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">Nonaktif</span>}</div><div className="flex items-center gap-1"><label className="flex items-center gap-1 text-xs cursor-pointer px-2 py-1 rounded-lg hover:bg-white/50"><input type="checkbox" checked={active} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-3.5 h-3.5 accent-emerald-600"/><span className="text-stone-600 font-medium">{active?"Aktif":"Off"}</span></label><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div></div>
+        <Field label="Kode"><input value={vc.code||""} onChange={e=>updVoucher(i,"code",e.target.value.toUpperCase())} onBlur={saveVouchers} placeholder="HEMAT10" className={`${iptCls} font-mono uppercase`}/></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Tipe"><select value={vc.type||"percentage"} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,type:e.target.value}:x);persistVouchers(n);}} className={iptCls}><option value="percentage">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></Field>
+          <Field label={vc.type==="fixed"?"Potongan (Rp)":"Persen (%)"}><input type="number" min="0" value={vc.value||0} onChange={e=>updVoucher(i,"value",parseInt(e.target.value)||0)} onBlur={saveVouchers} className={iptCls}/></Field>
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <div><label className="block text-xs font-medium text-stone-500 mb-1">Min. Order (Rp)</label><input type="number" min="0" value={vc.minOrder||0} onChange={e=>updVoucher(i,"minOrder",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-          {vc.type==="percentage"&&<div><label className="block text-xs font-medium text-stone-500 mb-1">Maks. Diskon (Rp)</label><input type="number" min="0" value={vc.maxDiscount||0} onChange={e=>updVoucher(i,"maxDiscount",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0 = tanpa batas" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>}
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Min. Order (Rp)"><input type="number" min="0" value={vc.minOrder||0} onChange={e=>updVoucher(i,"minOrder",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className={iptCls}/></Field>
+          {vc.type==="percentage"&&<Field label="Maks. Diskon" hint="0 = tanpa batas"><input type="number" min="0" value={vc.maxDiscount||0} onChange={e=>updVoucher(i,"maxDiscount",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className={iptCls}/></Field>}
         </div>
-        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Berlaku sampai <span className="text-stone-400">(opsional)</span></label><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-        <div><label className="block text-xs font-medium text-stone-500 mb-1">Deskripsi <span className="text-stone-400">(opsional)</span></label><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        <Field label="Berlaku sampai"><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className={iptCls}/></Field>
+        <Field label="Deskripsi"><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className={iptCls}/></Field>
       </div>);})}
-      <button onClick={addVoucher} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Voucher</button>
-    </div>
+    </div>}
 
-    <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-4">⚙️ Pengaturan Umum</h3>
-      <ImgUp value={v.hero_bg||""} onChange={val=>save("hero_bg",val)} label="Background Homepage"/>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kuota Order/Hari</label><input type="number" value={v.daily_quota||"20"} onChange={e=>setV(x=>({...x,daily_quota:e.target.value}))} onBlur={()=>save("daily_quota",v.daily_quota)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Lead Time Daily/Savory (hari)</label><input type="number" value={v.lead_time_classic||"0"} onChange={e=>setV(x=>({...x,lead_time_classic:e.target.value}))} onBlur={()=>save("lead_time_classic",v.lead_time_classic)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><p className="text-xs text-stone-400 mt-1">0 = same day</p></div>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Lead Time Special (hari)</label><input type="number" value={v.lead_time_special||"5"} onChange={e=>setV(x=>({...x,lead_time_special:e.target.value}))} onBlur={()=>save("lead_time_special",v.lead_time_special)} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      {sv&&<p className="text-xs text-amber-600">Menyimpan...</p>}
-    </div>
+    {sec==="faq"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className="text-lg">❓</span><div><h3 className="font-bold text-stone-800 text-sm">FAQ</h3><p className="text-[11px] text-stone-400">Tampil di halaman bantuan customer</p></div></div><button onClick={addFAQ} className="text-xs font-bold text-white bg-amber-800 hover:bg-amber-900 px-3 py-2 rounded-xl transition">+ Tambah</button></div>
+      {faqs.length===0&&<div className="text-center py-8 text-stone-300"><p className="text-3xl mb-2">❓</p><p className="text-sm text-stone-400">Belum ada FAQ</p></div>}
+      {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100"><div className="flex items-center justify-between mb-2"><span className="text-xs font-bold text-stone-500">#{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div><Field label="Pertanyaan"><input value={f.q} onChange={e=>updFAQ(i,"q",e.target.value)} onBlur={saveFAQ} placeholder="Berapa lama pemesanan?" className={iptCls}/></Field><Field label="Jawaban"><textarea value={f.a} onChange={e=>updFAQ(i,"a",e.target.value)} onBlur={saveFAQ} rows={2} placeholder="Untuk kue spesial minimal H-5..." className={iptCls}/></Field></div>))}
+    </div>}
+
+    {(sv||saved)&&<div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-xs font-semibold shadow-lg transition-all ${sv?"bg-amber-100 text-amber-800 border border-amber-200":"bg-emerald-600 text-white"}`}>{sv?"💾 Menyimpan...":"✓ Tersimpan"}</div>}
   </div>);
 };
 
