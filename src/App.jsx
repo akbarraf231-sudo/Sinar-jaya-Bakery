@@ -56,6 +56,7 @@ const todayStr = () => new Date().toISOString().slice(0,10);
 const weekStartStr = () => { const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10); };
 const inWeek = (dateStr) => (dateStr||"").slice(0,10)>=weekStartStr();
 const isSameDay = (dateStr,d=todayStr()) => (dateStr||"").slice(0,10)===d;
+const inMonth = (dateStr) => (dateStr||"").slice(0,7)===todayStr().slice(0,7);
 
 const parseImages = (v) => { if(!v) return []; if(typeof v!=="string") return []; const t=v.trim(); if(t.startsWith("[")){ try{const a=JSON.parse(t);return Array.isArray(a)?a.filter(x=>typeof x==="string"&&x):[];}catch{return [v];} } return [v]; };
 const firstImg = (v) => parseImages(v)[0]||"";
@@ -588,12 +589,13 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
   const [fm,setFm]=useState({date:todayStr(),name:"",qty:"1",price:"",productId:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
   const purchases=readArr(st?.purchases_json);
   const stockMap=readStockMap(st?.product_stock_json);
-  const today=purchases.filter(p=>isSameDay(p.date));const week=purchases.filter(p=>inWeek(p.date));
-  const todayT=today.reduce((s,p)=>s+(p.total||0),0);const weekT=week.reduce((s,p)=>s+(p.total||0),0);
+  const today=purchases.filter(p=>isSameDay(p.date));const week=purchases.filter(p=>inWeek(p.date));const month=purchases.filter(p=>inMonth(p.date));
+  const todayT=today.reduce((s,p)=>s+(p.total||0),0);const weekT=week.reduce((s,p)=>s+(p.total||0),0);const monthT=month.reduce((s,p)=>s+(p.total||0),0);
   const save=async()=>{if(!fm.name||!fm.price||busy)return;setBusy(true);const qty=Math.max(1,parseInt(fm.qty)||1);const price=Math.max(0,parseInt(fm.price)||0);const entry={id:genId(),date:fm.date,name:fm.name,qty,price,total:qty*price,productId:fm.productId||null};const next=[entry,...purchases];try{if(fm.productId){const ns={...stockMap};const cur=stockOf(ns,fm.productId);ns[String(fm.productId)]=(cur===Infinity?0:cur)+qty;await dbUS("product_stock_json",JSON.stringify(ns));}await dbUS("purchases_json",JSON.stringify(next));setFm({date:todayStr(),name:"",qty:"1",price:"",productId:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
   const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
   return(<div>
-    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Hari Ini</p><p className="text-lg font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Minggu Ini</p><p className="text-lg font-bold text-orange-600">{fmt(weekT)}</p></div></div>
+    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Centang "Tambah ke Stok Produk" agar stok naik otomatis.</div>
+    <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-orange-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-orange-600">{fmt(monthT)}</p></div></div>
     {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pembelian Baru</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
       <p className="text-sm font-bold text-stone-800 mb-3">📥 Pembelian Baru</p>
       <Inp label="Tanggal" type="date" value={fm.date} onChange={e=>setFm(f=>({...f,date:e.target.value}))}/>
@@ -613,13 +615,17 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
 const AExpenses = ({settings:st,onRefresh:rf}) => {
   const [fm,setFm]=useState({date:todayStr(),category:"Operasional",description:"",amount:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
   const expenses=readArr(st?.expenses_json);
-  const today=expenses.filter(e=>isSameDay(e.date));const week=expenses.filter(e=>inWeek(e.date));
-  const todayT=today.reduce((s,e)=>s+(e.amount||0),0);const weekT=week.reduce((s,e)=>s+(e.amount||0),0);
+  const today=expenses.filter(e=>isSameDay(e.date));const week=expenses.filter(e=>inWeek(e.date));const month=expenses.filter(e=>inMonth(e.date));
+  const todayT=today.reduce((s,e)=>s+(e.amount||0),0);const weekT=week.reduce((s,e)=>s+(e.amount||0),0);const monthT=month.reduce((s,e)=>s+(e.amount||0),0);
   const cats=["Operasional","Listrik","Gas","Air","Gaji","Transport","Perawatan","Lainnya"];
+  const byCat={};month.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+(e.amount||0);});
+  const catList=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   const save=async()=>{if(!fm.description||!fm.amount||busy)return;setBusy(true);const entry={id:genId(),date:fm.date,category:fm.category,description:fm.description,amount:Math.max(0,parseInt(fm.amount)||0)};const next=[entry,...expenses];try{await dbUS("expenses_json",JSON.stringify(next));setFm({date:todayStr(),category:"Operasional",description:"",amount:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pengeluaran");}setBusy(false);};
   const del=async(id)=>{if(!confirm("Hapus pengeluaran ini?"))return;const next=expenses.filter(e=>e.id!==id);try{await dbUS("expenses_json",JSON.stringify(next));if(rf)await rf();}catch{}};
   return(<div>
-    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Hari Ini</p><p className="text-lg font-bold text-red-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Minggu Ini</p><p className="text-lg font-bold text-red-600">{fmt(weekT)}</p></div></div>
+    <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4 text-[11px] text-red-800 leading-relaxed">💸 <span className="font-semibold">Biaya operasional yang BUKAN untuk stok</span> — listrik, gas, air, gaji karyawan, transport, dll. Catat biar laba real.</div>
+    <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-red-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-red-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-red-600">{fmt(monthT)}</p></div></div>
+    {catList.length>0&&<div className="bg-white rounded-2xl p-4 mb-4 border border-stone-100"><p className="text-xs font-bold text-stone-700 mb-2">📊 Breakdown Bulan Ini per Kategori</p>{catList.map(([c,a])=>{const pct=monthT>0?(a/monthT*100):0;return(<div key={c} className="mb-2 last:mb-0"><div className="flex justify-between text-xs mb-1"><span className="font-semibold text-stone-700">{c}</span><span className="text-stone-500">{fmt(a)} <span className="text-stone-400">({pct.toFixed(0)}%)</span></span></div><div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-red-400 rounded-full" style={{width:`${pct}%`}}/></div></div>);})}</div>}
     {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pengeluaran</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
       <p className="text-sm font-bold text-stone-800 mb-3">💸 Pengeluaran Baru</p>
       <Inp label="Tanggal" type="date" value={fm.date} onChange={e=>setFm(f=>({...f,date:e.target.value}))}/>
@@ -632,11 +638,87 @@ const AExpenses = ({settings:st,onRefresh:rf}) => {
   </div>);
 };
 
+const ARingkasan = ({products,orders,settings:st,onGo}) => {
+  const purchases=readArr(st?.purchases_json);
+  const expenses=readArr(st?.expenses_json);
+  const stockMap=readStockMap(st?.product_stock_json);
+  const ps=["paid","process","done","archived"];
+  const orderedOrders=orders||[];
+  const todaySales=orderedOrders.filter(o=>ps.includes(o.status)&&isSameDay(o.order_date));
+  const monthSales=orderedOrders.filter(o=>ps.includes(o.status)&&inMonth(o.order_date));
+  const tSalesToday=todaySales.reduce((s,o)=>s+(o.total||0),0);
+  const tSalesMonth=monthSales.reduce((s,o)=>s+(o.total||0),0);
+  const tBuyToday=purchases.filter(p=>isSameDay(p.date)).reduce((s,x)=>s+(x.total||0),0);
+  const tExpToday=expenses.filter(e=>isSameDay(e.date)).reduce((s,x)=>s+(x.amount||0),0);
+  const tBuyMonth=purchases.filter(p=>inMonth(p.date)).reduce((s,x)=>s+(x.total||0),0);
+  const tExpMonth=expenses.filter(e=>inMonth(e.date)).reduce((s,x)=>s+(x.amount||0),0);
+  const profitToday=tSalesToday-tBuyToday-tExpToday;
+  const profitMonth=tSalesMonth-tBuyMonth-tExpMonth;
+  const waiting=orderedOrders.filter(o=>o.status==="waiting").length;
+  const unpaid=orderedOrders.filter(o=>o.status==="waiting").reduce((s,o)=>s+(o.total||0),0);
+  const lowStock=products.filter(p=>{const s=stockOf(stockMap,p.id);return s!==Infinity&&s>0&&s<=5;});
+  const outStock=products.filter(p=>stockOf(stockMap,p.id)===0);
+  const todos=[];
+  if(waiting>0)todos.push({icon:"🔔",t:`${waiting} pesanan menunggu konfirmasi`,sub:`Total ${fmt(unpaid)} belum dibayar`,color:"amber",go:null});
+  if(outStock.length>0)todos.push({icon:"❌",t:`${outStock.length} produk habis`,sub:outStock.slice(0,3).map(p=>p.name).join(", ")+(outStock.length>3?"...":""),color:"red",go:"inventory"});
+  if(lowStock.length>0)todos.push({icon:"⚠️",t:`${lowStock.length} produk stok menipis`,sub:lowStock.slice(0,3).map(p=>`${p.name} (${stockOf(stockMap,p.id)})`).join(", ")+(lowStock.length>3?"...":""),color:"orange",go:"inventory"});
+  if(purchases.length===0)todos.push({icon:"📥",t:"Belum ada catatan pembelian",sub:"Catat bahan baku yang kamu beli agar laba akurat",color:"blue",go:"purchase"});
+  if(expenses.length===0)todos.push({icon:"💸",t:"Belum ada catatan pengeluaran",sub:"Catat biaya listrik, gas, gaji, dll",color:"blue",go:"expense"});
+  const cc={amber:"bg-amber-50 border-amber-200 text-amber-800",red:"bg-red-50 border-red-200 text-red-800",orange:"bg-orange-50 border-orange-200 text-orange-800",blue:"bg-blue-50 border-blue-200 text-blue-800"};
+  return(<div>
+    <div className="bg-gradient-to-br from-amber-700 to-amber-900 text-white rounded-2xl p-5 mb-4 shadow-lg"><p className="text-xs opacity-80 mb-1">👋 Selamat datang, Owner!</p><p className="text-[11px] opacity-70 mb-3">Ini ringkasan usaha kamu hari ini ({new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"})})</p>
+      <p className="text-[10px] opacity-80 mb-1">{profitToday>=0?"🎉 Laba Hari Ini":"⚠️ Rugi Hari Ini"}</p>
+      <p className="text-3xl font-bold">{profitToday<0?"−":""}{fmt(Math.abs(profitToday))}</p>
+    </div>
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">💰 Omzet Hari Ini</p><p className="text-lg font-bold text-emerald-600">{fmt(tSalesToday)}</p><p className="text-[10px] text-stone-400 mt-0.5">{todaySales.length} transaksi</p></div>
+      <div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">📉 Biaya Hari Ini</p><p className="text-lg font-bold text-red-500">{fmt(tBuyToday+tExpToday)}</p><p className="text-[10px] text-stone-400 mt-0.5">beli+pengeluaran</p></div>
+    </div>
+    {todos.length>0&&<div className="mb-4"><p className="text-xs font-bold text-stone-700 mb-2">📌 Yang Perlu Diperhatikan</p>{todos.map((t,i)=>(<button key={i} onClick={()=>t.go&&onGo&&onGo(t.go)} disabled={!t.go} className={`w-full text-left rounded-xl border p-3 mb-2 ${cc[t.color]} ${t.go?"active:scale-[0.99] transition":"cursor-default"}`}><div className="flex items-start gap-2"><span className="text-base">{t.icon}</span><div className="flex-1 min-w-0"><p className="text-xs font-bold">{t.t}</p><p className="text-[11px] opacity-80 mt-0.5 truncate">{t.sub}</p></div>{t.go&&<span className="text-xs opacity-60">›</span>}</div></button>))}</div>}
+    <div className="bg-white rounded-2xl p-4 mb-4 border border-stone-100"><p className="text-xs font-bold text-stone-700 mb-3">📅 Ringkasan Bulan Ini</p>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between"><span className="text-stone-500">Total Penjualan</span><span className="font-bold text-emerald-700">{fmt(tSalesMonth)}</span></div>
+        <div className="flex justify-between"><span className="text-stone-500">Total Pembelian</span><span className="font-bold text-orange-600">−{fmt(tBuyMonth)}</span></div>
+        <div className="flex justify-between"><span className="text-stone-500">Total Pengeluaran</span><span className="font-bold text-red-600">−{fmt(tExpMonth)}</span></div>
+        <div className="flex justify-between pt-2 border-t border-stone-200"><span className="font-bold text-stone-800">{profitMonth>=0?"Laba Bulan Ini":"Rugi Bulan Ini"}</span><span className={`font-bold ${profitMonth>=0?"text-emerald-700":"text-red-600"}`}>{profitMonth<0?"−":""}{fmt(Math.abs(profitMonth))}</span></div>
+        <p className="text-[10px] text-stone-400 pt-1">{monthSales.length} transaksi di bulan ini</p>
+      </div>
+    </div>
+    <div className="bg-stone-50 rounded-xl p-3 border border-stone-100 text-[11px] text-stone-600 leading-relaxed">💡 <span className="font-semibold">Tips:</span> Jangan lupa catat setiap pembelian bahan & pengeluaran harian supaya laba/rugi akurat. Cek menu <span className="font-semibold">Inventaris</span> untuk pastikan stok selalu tersedia.</div>
+  </div>);
+};
+
+const AInventory = ({products,settings:st,onRefresh:rf}) => {
+  const [busy,setBusy]=useState("");const [q,setQ]=useState("");
+  const stockMap=readStockMap(st?.product_stock_json);
+  const update=async(pid,val)=>{if(busy)return;setBusy(String(pid));const ns={...stockMap};if(val===null||val===""||isNaN(parseInt(val)))delete ns[String(pid)];else ns[String(pid)]=Math.max(0,parseInt(val));try{await dbUS("product_stock_json",JSON.stringify(ns));if(rf)await rf();}catch{alert("Gagal update stok");}setBusy("");};
+  const list=(products||[]).map(p=>({...p,_s:stockOf(stockMap,p.id)})).filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>{const sa=a._s===Infinity?9999:a._s;const sb=b._s===Infinity?9999:b._s;return sa-sb;});
+  const out=list.filter(p=>p._s===0).length;
+  const low=list.filter(p=>p._s!==Infinity&&p._s>0&&p._s<=5).length;
+  const ok=list.filter(p=>p._s===Infinity||p._s>5).length;
+  return(<div>
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-[11px] text-blue-800 leading-relaxed">📦 <span className="font-semibold">Kelola stok produk</span> — tambah/kurangi dengan tombol +/−, atau kosongkan untuk stok tidak terbatas (∞). Stok otomatis berkurang setiap pesanan.</div>
+    <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">✅ Aman</p><p className="text-lg font-bold text-emerald-600">{ok}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">⚠️ Menipis</p><p className="text-lg font-bold text-orange-600">{low}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">❌ Habis</p><p className="text-lg font-bold text-red-600">{out}</p></div></div>
+    <Inp placeholder="🔍 Cari produk..." value={q} onChange={e=>setQ(e.target.value)}/>
+    {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:list.map(p=>{const s=p._s;const cur=stockMap[String(p.id)];const bc=s===0?"border-red-200 bg-red-50/30":s!==Infinity&&s<=5?"border-orange-200 bg-orange-50/30":"border-stone-100 bg-white";return(<div key={p.id} className={`rounded-2xl p-3 mb-2 border ${bc}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{fmt(p.price)}</p></div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={()=>update(p.id,s===Infinity?0:Math.max(0,s-1))} disabled={busy===String(p.id)||s===0} className="w-8 h-8 rounded-full bg-stone-100 text-stone-700 text-sm font-bold disabled:opacity-30">−</button>
+          <div className={`min-w-[48px] text-center font-bold text-sm ${s===0?"text-red-600":s===Infinity?"text-stone-400":s<=5?"text-orange-600":"text-emerald-700"}`}>{s===Infinity?"∞":s}</div>
+          <button onClick={()=>update(p.id,s===Infinity?1:s+1)} disabled={busy===String(p.id)} className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 text-sm font-bold disabled:opacity-30">+</button>
+          {cur!==undefined&&<button onClick={()=>update(p.id,null)} title="Reset ke Unlimited" className="text-[10px] text-stone-400 hover:text-stone-700 ml-1">∞</button>}
+        </div>
+      </div>
+    </div>);})}
+  </div>);
+};
+
 const AReport = ({orders,settings:st}) => {
   const [range,setRange]=useState("day");
   const purchases=readArr(st?.purchases_json);
   const expenses=readArr(st?.expenses_json);
-  const check=range==="day"?isSameDay:inWeek;
+  const check=range==="day"?isSameDay:range==="week"?inWeek:inMonth;
   const ps=["paid","process","done","archived"];
   const scopedSales=(orders||[]).filter(o=>ps.includes(o.status)&&check(o.order_date));
   const scopedPurchases=purchases.filter(p=>check(p.date));
@@ -645,14 +727,18 @@ const AReport = ({orders,settings:st}) => {
   const tPurchases=scopedPurchases.reduce((s,x)=>s+(x.total||0),0);
   const tExpenses=scopedExpenses.reduce((s,x)=>s+(x.amount||0),0);
   const profit=tSales-tPurchases-tExpenses;
+  const margin=tSales>0?(profit/tSales*100):0;
+  const avgTrx=scopedSales.length>0?tSales/scopedSales.length:0;
   const pc={};scopedSales.forEach(o=>(o.items||[]).forEach(it=>{const k=it.name;if(!pc[k])pc[k]={qty:0,rev:0};pc[k].qty+=it.qty;pc[k].rev+=(it.price||0)*it.qty;}));
   const top=Object.entries(pc).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
-  const label=range==="day"?"Hari Ini":"Minggu Ini";
+  const label=range==="day"?"Hari Ini":range==="week"?"Minggu Ini":"Bulan Ini";
   return(<div>
-    <div className="flex gap-2 mb-4">{[{k:"day",l:"Hari Ini"},{k:"week",l:"Minggu Ini"}].map(x=>(<button key={x.k} onClick={()=>setRange(x.k)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${range===x.k?"bg-amber-800 text-white shadow":"bg-white border border-stone-200 text-stone-600"}`}>{x.l}</button>))}</div>
+    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 text-[11px] text-amber-800 leading-relaxed">💡 <span className="font-semibold">Laba = Penjualan − Pembelian − Pengeluaran</span>. Semakin tinggi laba & margin, usaha makin sehat.</div>
+    <div className="flex gap-1.5 mb-4">{[{k:"day",l:"Hari Ini"},{k:"week",l:"Minggu"},{k:"month",l:"Bulan"}].map(x=>(<button key={x.k} onClick={()=>setRange(x.k)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${range===x.k?"bg-amber-800 text-white shadow":"bg-white border border-stone-200 text-stone-600"}`}>{x.l}</button>))}</div>
     <div className={`rounded-2xl p-5 mb-4 border-2 ${profit>=0?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}>
       <p className="text-xs text-stone-500 mb-1">{profit>=0?"🎉 Laba":"⚠️ Rugi"} — {label}</p>
       <p className={`text-3xl font-bold ${profit>=0?"text-emerald-700":"text-red-600"}`}>{profit<0?"−":""}{fmt(Math.abs(profit))}</p>
+      {tSales>0&&<p className={`text-[11px] mt-1.5 font-semibold ${profit>=0?"text-emerald-600":"text-red-500"}`}>Margin: {margin.toFixed(1)}%</p>}
     </div>
     <div className="bg-white rounded-2xl p-5 mb-4 border border-stone-100 space-y-3">
       <div className="flex justify-between items-center"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/><p className="text-sm text-stone-600">Penjualan</p></div><p className="font-bold text-emerald-700">{fmt(tSales)}</p></div>
@@ -660,6 +746,7 @@ const AReport = ({orders,settings:st}) => {
       <div className="flex justify-between items-center"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/><p className="text-sm text-stone-600">Pengeluaran</p></div><p className="font-bold text-red-600">−{fmt(tExpenses)}</p></div>
       <div className="flex justify-between items-center pt-3 border-t border-stone-200"><p className="font-bold text-stone-800">= Laba/Rugi</p><p className={`font-bold ${profit>=0?"text-emerald-700":"text-red-600"}`}>{profit<0?"−":""}{fmt(Math.abs(profit))}</p></div>
     </div>
+    <div className="grid grid-cols-2 gap-2 mb-4"><div className="bg-white rounded-xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">📊 Rata-rata per transaksi</p><p className="text-sm font-bold text-stone-800">{fmt(avgTrx)}</p></div><div className="bg-white rounded-xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">🧾 Total transaksi</p><p className="text-sm font-bold text-stone-800">{scopedSales.length}</p></div></div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Transaksi</p><p className="text-lg font-bold text-stone-800">{scopedSales.length}</p></div><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Pembelian</p><p className="text-lg font-bold text-stone-800">{scopedPurchases.length}</p></div><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Pengeluaran</p><p className="text-lg font-bold text-stone-800">{scopedExpenses.length}</p></div></div>
     <h3 className="font-bold text-sm text-stone-800 mb-3">🏆 Produk Terlaris ({label})</h3>
     {top.length===0?<p className="text-sm text-stone-400 text-center py-6">Belum ada penjualan</p>:top.map(([n,x],i)=>(<div key={n} className="bg-white rounded-2xl p-4 mb-2 flex items-center justify-between border border-stone-100"><div className="flex items-center gap-3 min-w-0 flex-1"><span className="text-sm font-bold text-stone-300 w-6">#{i+1}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-stone-800 truncate">{n}</p><p className="text-[11px] text-stone-400">{x.qty}× terjual</p></div></div><p className="text-sm font-bold text-emerald-700 whitespace-nowrap ml-2">{fmt(x.rev)}</p></div>))}
@@ -667,14 +754,16 @@ const AReport = ({orders,settings:st}) => {
 };
 
 const APembukuan = ({products,orders,settings:st,onRefresh:rf}) => {
-  const [sub,setSub]=useState("report");
-  const subs=[{id:"report",icon:"📊",l:"Laporan"},{id:"stats",icon:"📈",l:"Statistik"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"}];
+  const [sub,setSub]=useState("ringkasan");
+  const subs=[{id:"ringkasan",icon:"🏠",l:"Ringkasan"},{id:"report",icon:"📊",l:"Laporan"},{id:"stats",icon:"📈",l:"Statistik"},{id:"inventory",icon:"📦",l:"Inventaris"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"}];
   return(<div>
     <div className="sticky top-[60px] z-20 -mx-4 px-4 py-2 bg-stone-50/95 backdrop-blur-sm border-b border-stone-100 mb-4">
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">{subs.map(s=>(<button key={s.id} onClick={()=>setSub(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sub===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.l}</button>))}</div>
     </div>
+    {sub==="ringkasan"&&<ARingkasan products={products} orders={orders} settings={st} onGo={setSub}/>}
     {sub==="report"&&<AReport orders={orders} settings={st}/>}
     {sub==="stats"&&<AStats orders={orders}/>}
+    {sub==="inventory"&&<AInventory products={products} settings={st} onRefresh={rf}/>}
     {sub==="purchase"&&<APurchases products={products} settings={st} onRefresh={rf}/>}
     {sub==="expense"&&<AExpenses settings={st} onRefresh={rf}/>}
   </div>);
