@@ -40,6 +40,11 @@ const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
 const dfmt = (d) => { const D=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"],M=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]; return `${D[d.getDay()]}, ${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()}`; };
 const jp = (v,fb=[]) => { if(!v) return fb; if(typeof v==="string") try{return JSON.parse(v)}catch{return fb;} return v; };
 
+const DAYS = [{key:"monday",label:"Senin"},{key:"tuesday",label:"Selasa"},{key:"wednesday",label:"Rabu"},{key:"thursday",label:"Kamis"},{key:"friday",label:"Jumat"},{key:"saturday",label:"Sabtu"},{key:"sunday",label:"Minggu"}];
+const todayKey = () => DAYS[(new Date().getDay()+6)%7].key;
+const todayLabel = () => DAYS[(new Date().getDay()+6)%7].label;
+const readSchedIds = (v) => { const p=jp(v,null);const r={};DAYS.forEach(d=>{r[d.key]=Array.isArray(p&&p[d.key])?p[d.key].map(Number).filter(x=>!isNaN(x)):[];});return r; };
+
 const applyVoucher = (code,list,subtotal) => {
   if(!code||!code.trim()) return {ok:false,err:"",discount:0,voucher:null};
   const v=(list||[]).find(x=>(x.code||"").toUpperCase()===code.trim().toUpperCase());
@@ -158,8 +163,10 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedIds}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
+  const todayIds=(schedIds&&schedIds[todayKey()])||[];
+  const todayProds=products.filter(p=>(p.category==="classic"||p.category==="harian")&&todayIds.includes(p.id));
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
@@ -176,6 +183,9 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
         <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-3 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
     </div>
+    {!loading&&todayProds.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Tersedia Hari Ini — {todayLabel()}</h2></div>
+      <div className="grid grid-cols-2 gap-3">{todayProds.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}><div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full"><div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={p.image_url} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LB label={p.label}/></div>}</div><div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.description&&<p className="text-[10px] text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.description}</p>}<div className="flex items-center justify-between"><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div></div></button>))}</div>
+    </div>}
     {loading?<Skel/>:(<div className="px-5 pb-8 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
       <div className="flex flex-col gap-3">{bs.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left w-full flex group ${p.is_sold_out?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-200"} transition-all`}>
         <div className="w-28 min-h-[100px] flex-shrink-0 overflow-hidden relative"><Img name={p.name} color={p.color} img={p.image_url} size="md"/>{p.is_sold_out&&<div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">Habis</span></div>}</div>
@@ -184,11 +194,14 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
     <FCart cart={cart} onClick={onCart}/></Shell>);
 };
 
-const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome}) => {
-  const fl=products.filter(p=>category==="classic"?(p.category==="classic"||p.category==="harian"):p.category===category),t=category==="special"?"Special Selection":"Classic Selection",sp=category==="special";
+const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome,schedIds}) => {
+  const all=products.filter(p=>category==="classic"?(p.category==="classic"||p.category==="harian"):p.category===category);
+  const todayIds=(schedIds&&schedIds[todayKey()])||[];
+  const fl=category==="classic"&&todayIds.length>0?[...all].sort((a,b)=>(todayIds.includes(b.id)?1:0)-(todayIds.includes(a.id)?1:0)):all;
+  const t=category==="special"?"Special Selection":"Classic Selection",sp=category==="special";
   return(<Shell title={t} onBack={onBack} onHome={onHome}>
-    <div className={`px-5 pt-5 pb-3 ${sp?"bg-gradient-to-b from-purple-50 to-stone-50":"bg-gradient-to-b from-amber-50 to-stone-50"}`}><div className="flex items-center gap-3 mb-2"><span className="text-3xl">{sp?"🎉":"🍩"}</span><div><h2 className="text-lg font-bold text-stone-800">{t}</h2><p className="text-xs text-stone-400">{sp?"Untuk momen spesial & perayaan":"Pilihan harian favorit"}</p></div></div>{sp&&<div className="bg-white/70 backdrop-blur-sm text-purple-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-purple-100 mt-3">ℹ️ Minimal pemesanan H-5</div>}</div>
-    <div className="px-5 py-4">{fl.length===0?<div className="text-center py-20 text-stone-300"><p className="text-5xl mb-4">🍰</p><p className="font-medium text-stone-400">Produk belum tersedia</p></div>:(<div className="grid grid-cols-2 gap-3">{fl.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}><div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full"><div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={p.image_url} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LB label={p.label}/></div>}</div><div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.portion&&<p className="text-[10px] text-stone-400 mb-1">👥 {p.portion}</p>}<p className="text-[10px] text-stone-400 mb-2.5 line-clamp-2 leading-relaxed">{p.recommendation}</p><div className="flex items-center justify-between"><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div></div></button>))}</div>)}</div>
+    <div className={`px-5 pt-5 pb-3 ${sp?"bg-gradient-to-b from-purple-50 to-stone-50":"bg-gradient-to-b from-amber-50 to-stone-50"}`}><div className="flex items-center gap-3 mb-2"><span className="text-3xl">{sp?"🎉":"🍩"}</span><div><h2 className="text-lg font-bold text-stone-800">{t}</h2><p className="text-xs text-stone-400">{sp?"Untuk momen spesial & perayaan":"Pilihan harian favorit"}</p></div></div>{sp&&<div className="bg-white/70 backdrop-blur-sm text-purple-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-purple-100 mt-3">ℹ️ Minimal pemesanan H-5</div>}{!sp&&todayIds.length>0&&<div className="bg-white/70 backdrop-blur-sm text-emerald-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-emerald-100 mt-3">🍞 Produk dengan label <span className="font-semibold">✓ Hari Ini</span> tersedia {todayLabel()}</div>}</div>
+    <div className="px-5 py-4">{fl.length===0?<div className="text-center py-20 text-stone-300"><p className="text-5xl mb-4">🍰</p><p className="font-medium text-stone-400">Produk belum tersedia</p></div>:(<div className="grid grid-cols-2 gap-3">{fl.map(p=>{const today=!sp&&todayIds.includes(p.id);return(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}><div className={`bg-white rounded-2xl overflow-hidden shadow-sm h-full border ${today?"border-emerald-300":"border-stone-100"}`}><div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={p.image_url} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LB label={p.label}/></div>}{today&&!p.is_sold_out&&<div className="absolute top-2 right-2"><span className="text-[10px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-full shadow">✓ Hari Ini</span></div>}</div><div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.portion&&<p className="text-[10px] text-stone-400 mb-1">👥 {p.portion}</p>}<p className="text-[10px] text-stone-400 mb-2.5 line-clamp-2 leading-relaxed">{p.recommendation}</p><div className="flex items-center justify-between"><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div></div></button>);})}</div>)}</div>
     <FCart cart={cart} onClick={onCart}/></Shell>);
 };
 
@@ -457,6 +470,36 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   </div>);
 };
 
+const ASchedule = ({products,settings:st,onRefresh:rf}) => {
+  const [sched,setSched]=useState(()=>readSchedIds(st.daily_schedule_json));
+  const [day,setDay]=useState(todayKey());const [sv,setSv]=useState(false);const [err,setErr]=useState("");
+  const classic=products.filter(p=>p.category==="classic"||p.category==="harian");
+  const ids=sched[day]||[];
+  const persist=async(next)=>{setSv(true);setErr("");try{await dbUS("daily_schedule_json",JSON.stringify(next));setSched(next);if(rf)rf();}catch(e){setErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
+  const toggle=(pid)=>{const cur=ids.includes(pid)?ids.filter(x=>x!==pid):[...ids,pid];persist({...sched,[day]:cur});};
+  const setAll=(on)=>persist({...sched,[day]:on?classic.map(p=>p.id):[]});
+  const copyFrom=(srcKey)=>{if(!confirm(`Salin jadwal ${DAYS.find(x=>x.key===srcKey).label} ke ${DAYS.find(x=>x.key===day).label}?`))return;persist({...sched,[day]:[...(sched[srcKey]||[])]});};
+
+  return(<div className="space-y-4">
+    {err&&<div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200">⚠️ {err}</div>}
+    <div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <h3 className="font-bold text-stone-800 mb-1">🗓️ Jadwal Produk Classic Harian</h3>
+      <p className="text-xs text-stone-400 mb-4">Centang produk yang tersedia tiap hari. Customer akan lihat produk hari ini di beranda. Hari ini: <span className="font-semibold text-amber-700">{todayLabel()}</span></p>
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">{DAYS.map(dd=>(<button key={dd.key} onClick={()=>setDay(dd.key)} className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${day===dd.key?"bg-amber-800 text-white shadow":"bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>{dd.label}{dd.key===todayKey()&&" ·"}{(sched[dd.key]||[]).length>0&&<span className="ml-1 text-[10px] opacity-70">({(sched[dd.key]||[]).length})</span>}</button>))}</div>
+
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap"><p className="text-sm font-semibold text-stone-700">Menu {DAYS.find(x=>x.key===day).label}</p><div className="flex gap-2 items-center"><button onClick={()=>setAll(true)} className="text-xs text-amber-700 hover:text-amber-900 font-medium">Centang semua</button><span className="text-stone-300">·</span><button onClick={()=>setAll(false)} className="text-xs text-stone-500 hover:text-red-600 font-medium">Kosongkan</button><select onChange={e=>{if(e.target.value){copyFrom(e.target.value);e.target.value="";}}} className="text-xs border border-stone-200 rounded-xl px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="">Salin dari...</option>{DAYS.filter(d=>d.key!==day).map(d=>(<option key={d.key} value={d.key}>{d.label} ({(sched[d.key]||[]).length})</option>))}</select></div></div>
+
+      {classic.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada produk Classic. Tambahkan dulu di tab Menu.</p>}
+      {classic.map(p=>{const on=ids.includes(p.id);return(<label key={p.id} className={`flex items-center gap-3 p-3 mb-2 rounded-xl border cursor-pointer transition ${on?"bg-amber-50 border-amber-200":"bg-stone-50 border-stone-100 hover:border-amber-200"}`}>
+        <input type="checkbox" checked={on} onChange={()=>toggle(p.id)} className="w-5 h-5 accent-amber-700"/>
+        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={p.image_url} size="sm"/></div>
+        <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-xs text-stone-400">{fmt(p.price)}{p.is_sold_out&&" · Habis"}</p></div>
+      </label>);})}
+      {sv&&<p className="text-xs text-amber-600 mt-2">Menyimpan...</p>}
+    </div>
+  </div>);
+};
+
 const Admin = ({onLogout}) => {
   const [tab,setTab]=useState("orders");
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [allOrders,setAllOrders]=useState([]);const [cd,setCd]=useState([]);const [settings,setSettings]=useState({});const [loading,setLoading]=useState(true);
@@ -471,7 +514,7 @@ const Admin = ({onLogout}) => {
 
   useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
 
-  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
+  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
@@ -480,6 +523,7 @@ const Admin = ({onLogout}) => {
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
       {tab==="menu"&&<AMenu products={products} onRefresh={load}/>}
+      {tab==="schedule"&&<ASchedule products={products} settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
       {tab==="stats"&&<AStats orders={allOrders}/>}
       {tab==="settings"&&<ASettings settings={settings} onRefresh={load}/>}
@@ -515,11 +559,11 @@ export default function App(){
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
-    {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
+    {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH} schedIds={readSchedIds(st.daily_schedule_json)}/>}
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
