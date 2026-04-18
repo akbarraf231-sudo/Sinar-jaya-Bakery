@@ -164,8 +164,10 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 /* ── CUSTOMER ── */
 
 const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedIds}) => {
-  const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const todayIds=(schedIds&&schedIds[todayKey()])||[];
+  const isScheduled=todayIds.length>0;
+  const visible=products.filter(p=>!isScheduled||p.category==="special"||todayIds.includes(p.id));
+  const bs=visible.filter(p=>p.label==="Best Seller").slice(0,3);
   const todayProds=products.filter(p=>(p.category==="classic"||p.category==="harian")&&todayIds.includes(p.id));
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
@@ -195,9 +197,10 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
 };
 
 const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome,schedIds}) => {
-  const all=products.filter(p=>category==="classic"?(p.category==="classic"||p.category==="harian"):p.category===category);
   const todayIds=(schedIds&&schedIds[todayKey()])||[];
-  const fl=category==="classic"&&todayIds.length>0?[...all].sort((a,b)=>(todayIds.includes(b.id)?1:0)-(todayIds.includes(a.id)?1:0)):all;
+  const isScheduled=category==="classic"&&todayIds.length>0;
+  const all=products.filter(p=>category==="classic"?((p.category==="classic"||p.category==="harian")&&(!isScheduled||todayIds.includes(p.id))):p.category===category);
+  const fl=isScheduled?[...all].sort((a,b)=>(todayIds.includes(b.id)?1:0)-(todayIds.includes(a.id)?1:0)):all;
   const t=category==="special"?"Special Selection":"Classic Selection",sp=category==="special";
   return(<Shell title={t} onBack={onBack} onHome={onHome}>
     <div className={`px-5 pt-5 pb-3 ${sp?"bg-gradient-to-b from-purple-50 to-stone-50":"bg-gradient-to-b from-amber-50 to-stone-50"}`}><div className="flex items-center gap-3 mb-2"><span className="text-3xl">{sp?"🎉":"🍩"}</span><div><h2 className="text-lg font-bold text-stone-800">{t}</h2><p className="text-xs text-stone-400">{sp?"Untuk momen spesial & perayaan":"Pilihan harian favorit"}</p></div></div>{sp&&<div className="bg-white/70 backdrop-blur-sm text-purple-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-purple-100 mt-3">ℹ️ Minimal pemesanan H-5</div>}{!sp&&todayIds.length>0&&<div className="bg-white/70 backdrop-blur-sm text-emerald-700 text-xs px-4 py-2.5 rounded-xl mb-1 border border-emerald-100 mt-3">🍞 Produk dengan label <span className="font-semibold">✓ Hari Ini</span> tersedia {todayLabel()}</div>}</div>
