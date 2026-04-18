@@ -40,12 +40,6 @@ const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
 const dfmt = (d) => { const D=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"],M=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]; return `${D[d.getDay()]}, ${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()}`; };
 const jp = (v,fb=[]) => { if(!v) return fb; if(typeof v==="string") try{return JSON.parse(v)}catch{return fb;} return v; };
 
-const DAYS = [{key:"monday",label:"Senin"},{key:"tuesday",label:"Selasa"},{key:"wednesday",label:"Rabu"},{key:"thursday",label:"Kamis"},{key:"friday",label:"Jumat"},{key:"saturday",label:"Sabtu"},{key:"sunday",label:"Minggu"}];
-const todayKey = () => DAYS[(new Date().getDay()+6)%7].key;
-const todayLabel = () => DAYS[(new Date().getDay()+6)%7].label;
-const emptySchedule = () => DAYS.reduce((a,d)=>({...a,[d.key]:[]}),{});
-const readSchedule = (v) => { const fb=emptySchedule();const p=jp(v,null);if(!p||typeof p!=="object")return fb;return DAYS.reduce((a,d)=>({...a,[d.key]:Array.isArray(p[d.key])?p[d.key]:[]}),{}); };
-
 const applyVoucher = (code,list,subtotal) => {
   if(!code||!code.trim()) return {ok:false,err:"",discount:0,voucher:null};
   const v=(list||[]).find(x=>(x.code||"").toUpperCase()===code.trim().toUpperCase());
@@ -164,9 +158,9 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedule,onAddSched}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
-  const todayItems=(schedule&&schedule[todayKey()])||[];
+  const harian=products.filter(p=>p.category==="harian");
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
@@ -183,9 +177,8 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
         <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-3 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
     </div>
-    {!loading&&todayItems.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Menu Hari Ini — {todayLabel()}</h2></div>
-      <div className="grid grid-cols-2 gap-3">{todayItems.map((it,i)=>{const price=Number(it.price)||0;const disabled=!it.name||price<=0;return(<button key={i} disabled={disabled} onClick={()=>onAddSched&&onAddSched(it,i)} className={`bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100 shadow-sm text-left flex flex-col group transition-all ${disabled?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-300 active:scale-[0.98]"}`}><p className="font-bold text-stone-800 text-sm mb-1">{it.name||"(belum diisi)"}</p>{it.description&&<p className="text-[10px] text-stone-500 mb-2 line-clamp-2 leading-relaxed">{it.description}</p>}<div className="flex items-center justify-between mt-auto"><p className="text-amber-800 font-bold text-sm">{fmt(price)}</p>{!disabled&&<span className="bg-amber-800 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center shadow group-hover:bg-amber-900 transition">+</span>}</div></button>);})}</div>
-      <p className="text-xs text-stone-400 mt-3 text-center">Klik produk untuk masuk keranjang</p>
+    {!loading&&harian.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Menu Harian</h2></div>
+      <div className="grid grid-cols-2 gap-3">{harian.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}><div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full"><div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={p.image_url} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LB label={p.label}/></div>}</div><div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.description&&<p className="text-[10px] text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.description}</p>}<div className="flex items-center justify-between"><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div></div></button>))}</div>
     </div>}
     {loading?<Skel/>:(<div className="px-5 pb-8 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
       <div className="flex flex-col gap-3">{bs.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left w-full flex group ${p.is_sold_out?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-200"} transition-all`}>
@@ -204,7 +197,7 @@ const Catalog = ({products,category,onProd,onBack,cart,onCart,onHome}) => {
 };
 
 const Product = ({product:pr,onBack,onAdd,cart,onCart,onHome}) => {
-  const sz=jp(pr.sizes,[]),fl=jp(pr.flavors,[]),isCl=pr.category==="classic",disc=pr.discount||0,mq=pr.max_qty||0;
+  const sz=jp(pr.sizes,[]),fl=jp(pr.flavors,[]),isCl=pr.category==="classic"||pr.category==="harian",disc=pr.discount||0,mq=pr.max_qty||0;
   const [si,setSi]=useState(sz.length>0?0:-1);
   const [fv,setFv]=useState(isCl?[]:(fl.length>0?fl[0]:""));
   const [qty,setQty]=useState(1);
@@ -364,7 +357,7 @@ const AMenu = ({products,onRefresh:rf}) => {
     <Inp label="Harga" type="number" value={fm.price} onChange={e=>setFm(f=>({...f,price:e.target.value}))}/>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Diskon <span className="text-stone-400 font-normal text-xs">(% — 0 = tanpa diskon)</span></label><div className="flex items-center gap-3"><input type="number" min="0" max="100" value={fm.discount||0} onChange={e=>setFm(f=>({...f,discount:Math.min(100,Math.max(0,parseInt(e.target.value)||0))}))} className="w-24 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><span className="text-sm text-stone-500">%</span>{fm.discount>0&&fm.price&&<span className="text-xs text-emerald-600 font-medium">→ {fmt(Math.round(Number(fm.price)*(1-fm.discount/100)))}</span>}</div></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Maks. Qty per Order <span className="text-stone-400 font-normal text-xs">(0 = tanpa batas)</span></label><input type="number" min="0" value={fm.max_qty||0} onChange={e=>setFm(f=>({...f,max_qty:parseInt(e.target.value)||0}))} className="w-32 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-    <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category} onChange={e=>setFm(f=>({...f,category:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="classic">Classic</option><option value="special">Special</option></select></div>
+    <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category} onChange={e=>setFm(f=>({...f,category:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="classic">Classic</option><option value="special">Special</option><option value="harian">Harian (Menu Harian)</option></select><p className="text-xs text-stone-400 mt-1">Classic/Harian tampil di katalog & beranda. Special perlu H-5.</p></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Sub-kategori <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.subcategory||""} onChange={e=>setFm(f=>({...f,subcategory:e.target.value}))} placeholder="Contoh: Roti Manis, Kue Kering" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.label} onChange={e=>setFm(f=>({...f,label:e.target.value}))} placeholder="Contoh: Best Seller, Diskon 20%, Baru" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Warna Placeholder</label><input type="color" value={fm.color} onChange={e=>setFm(f=>({...f,color:e.target.value}))} className="w-12 h-10 rounded-xl border-0 cursor-pointer"/></div>
@@ -375,7 +368,7 @@ const AMenu = ({products,onRefresh:rf}) => {
 
   return(<div>
     <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
-    {products.map(p=>(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out?"opacity-60":""}`}><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={p.image_url} size="sm"/></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}{p.discount>0&&<span className="text-emerald-600 text-xs font-normal ml-2">-{p.discount}%</span>}</p><p className="text-xs text-stone-400">{p.category==="special"?"Special":"Classic"} · {fmt(p.price)}{p.max_qty>0&&` · Max ${p.max_qty}`}</p></div></div>
+    {products.map(p=>(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out?"opacity-60":""}`}><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={p.image_url} size="sm"/></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}{p.discount>0&&<span className="text-emerald-600 text-xs font-normal ml-2">-{p.discount}%</span>}</p><p className="text-xs text-stone-400">{p.category==="special"?"Special":p.category==="harian"?"Harian":"Classic"} · {fmt(p.price)}{p.max_qty>0&&` · Max ${p.max_qty}`}</p></div></div>
       <div className="flex gap-1"><button onClick={async()=>{try{await dbSO(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button><button onClick={()=>{const fl=jp(p.flavors,[]),sz=jp(p.sizes,[]);setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[],discount:p.discount||0,max_qty:p.max_qty||0});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button><button onClick={async()=>{try{await dbDP(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button></div></div></div>))}
   </div>);
 };
@@ -468,39 +461,6 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   </div>);
 };
 
-const ASchedule = ({settings:st,onRefresh:rf}) => {
-  const [sched,setSched]=useState(()=>readSchedule(st.daily_schedule_json));
-  const [day,setDay]=useState(todayKey());const [sv,setSv]=useState(false);const [err,setErr]=useState("");
-  const persist=async(next)=>{setSv(true);setErr("");try{await dbUS("daily_schedule_json",JSON.stringify(next));setSched(next);if(rf)rf();}catch(e){setErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
-  const items=sched[day]||[];
-  const update=(i,k,val)=>{const n={...sched,[day]:items.map((x,j)=>j===i?{...x,[k]:val}:x)};setSched(n);};
-  const commit=()=>persist(sched);
-  const add=()=>persist({...sched,[day]:[...items,{name:"",price:0,description:""}]});
-  const remove=(i)=>{if(!confirm("Hapus item ini?"))return;persist({...sched,[day]:items.filter((_,j)=>j!==i)});};
-  const copyFrom=(srcKey)=>{if(!confirm(`Salin semua menu dari ${DAYS.find(x=>x.key===srcKey).label} ke ${DAYS.find(x=>x.key===day).label}?`))return;persist({...sched,[day]:(sched[srcKey]||[]).map(x=>({...x}))});};
-
-  return(<div className="space-y-4">
-    {err&&<div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200">⚠️ {err}</div>}
-    <div className="bg-white rounded-2xl p-5 border border-stone-100">
-      <h3 className="font-bold text-stone-800 mb-1">🗓️ Jadwal Produk Harian</h3>
-      <p className="text-xs text-stone-400 mb-4">Atur menu yang tampil di beranda sesuai hari. Hari ini: <span className="font-semibold text-amber-700">{todayLabel()}</span></p>
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">{DAYS.map(dd=>(<button key={dd.key} onClick={()=>setDay(dd.key)} className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${day===dd.key?"bg-amber-800 text-white shadow":"bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>{dd.label}{dd.key===todayKey()&&" ·"}{(sched[dd.key]||[]).length>0&&<span className="ml-1 text-[10px] opacity-70">({(sched[dd.key]||[]).length})</span>}</button>))}</div>
-
-      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold text-stone-700">Menu {DAYS.find(x=>x.key===day).label}</p><select onChange={e=>{if(e.target.value){copyFrom(e.target.value);e.target.value="";}}} className="text-xs border border-stone-200 rounded-xl px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="">Salin dari...</option>{DAYS.filter(d=>d.key!==day).map(d=>(<option key={d.key} value={d.key}>{d.label} ({(sched[d.key]||[]).length})</option>))}</select></div>
-
-      {items.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada menu untuk hari ini</p>}
-      {items.map((it,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
-        <div className="flex items-center justify-between mb-3"><span className="text-xs font-semibold text-stone-500">Item #{i+1}</span><button onClick={()=>remove(i)} className="text-red-400 hover:text-red-600 text-sm" title="Hapus">🗑️</button></div>
-        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Nama Produk</label><input value={it.name||""} onChange={e=>update(i,"name",e.target.value)} onBlur={commit} placeholder="Contoh: Roti Tawar" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Harga (Rp)</label><input type="number" min="0" value={it.price||0} onChange={e=>update(i,"price",parseInt(e.target.value)||0)} onBlur={commit} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-        <div><label className="block text-xs font-medium text-stone-500 mb-1">Deskripsi <span className="text-stone-400">(opsional)</span></label><input value={it.description||""} onChange={e=>update(i,"description",e.target.value)} onBlur={commit} placeholder="Contoh: Lembut, fresh dari oven" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
-      </div>))}
-      <button onClick={add} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Item</button>
-      {sv&&<p className="text-xs text-amber-600 mt-2">Menyimpan...</p>}
-    </div>
-  </div>);
-};
-
 const Admin = ({onLogout}) => {
   const [tab,setTab]=useState("orders");
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [allOrders,setAllOrders]=useState([]);const [cd,setCd]=useState([]);const [settings,setSettings]=useState({});const [loading,setLoading]=useState(true);
@@ -515,7 +475,7 @@ const Admin = ({onLogout}) => {
 
   useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
 
-  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
+  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
@@ -524,7 +484,6 @@ const Admin = ({onLogout}) => {
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
       {tab==="menu"&&<AMenu products={products} onRefresh={load}/>}
-      {tab==="schedule"&&<ASchedule settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
       {tab==="stats"&&<AStats orders={allOrders}/>}
       {tab==="settings"&&<ASettings settings={settings} onRefresh={load}/>}
@@ -560,7 +519,7 @@ export default function App(){
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedule={readSchedule(st.daily_schedule_json)} onAddSched={(it,i)=>d({type:"ADD",item:{id:`sched-${todayKey()}-${i}`,name:it.name,unitPrice:Number(it.price)||0,qty:1,size:"",flavor:"",note:it.description||"",category:"classic",color:"#D4A574",img:""}})}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
