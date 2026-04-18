@@ -77,8 +77,8 @@ const cR = (st,a) => {
 };
 
 const Badge = ({children,variant="default"}) => {
-  const v={default:"bg-amber-800/10 text-amber-900 border border-amber-200",best:"bg-orange-100 text-orange-800 border border-orange-200",rec:"bg-emerald-50 text-emerald-700 border border-emerald-200",sw:"bg-yellow-50 text-yellow-700 border border-yellow-200",sp:"bg-emerald-50 text-emerald-700 border border-emerald-200",sb:"bg-blue-50 text-blue-700 border border-blue-200",sd:"bg-gray-100 text-gray-500 border border-gray-200"};
-  return <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${v[variant]||v.default}`}>{children}</span>;
+  const v={default:"bg-amber-700 text-white",best:"bg-orange-500 text-white",rec:"bg-emerald-600 text-white",sw:"bg-yellow-500 text-white",sp:"bg-emerald-600 text-white",sb:"bg-blue-500 text-white",sd:"bg-stone-500 text-white"};
+  return <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md ${v[variant]||v.default}`}>{children}</span>;
 };
 const LB = ({label}) => { if(!label)return null; if(label==="Best Seller")return <Badge variant="best">⭐ Best Seller</Badge>; if(label==="Rekomendasi")return <Badge variant="rec">✓ Rekomendasi</Badge>; return <Badge>{label}</Badge>; };
 
