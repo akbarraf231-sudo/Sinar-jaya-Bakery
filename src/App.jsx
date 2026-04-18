@@ -588,32 +588,6 @@ const ASchedule = ({products,settings:st,onRefresh:rf}) => {
   </div>);
 };
 
-const APos = ({products,settings:st,onRefresh:rf}) => {
-  const [sale,setSale]=useState([]);const [q,setQ]=useState("");const [busy,setBusy]=useState(false);const [toast,setToast]=useState("");
-  const stockMap=readStockMap(st?.product_stock_json);
-  const sales=readArr(st?.pos_sales_json);
-  const todayS=sales.filter(s=>isSameDay(s.date));
-  const todayTotal=todayS.reduce((a,s)=>a+(s.total||0),0);
-  const list=products.filter(p=>!p.is_sold_out&&(!q||p.name.toLowerCase().includes(q.toLowerCase())));
-  const stockLeft=(pid)=>{const b=stockOf(stockMap,pid);if(b===Infinity)return Infinity;const s=sale.filter(x=>x.productId===pid).reduce((a,x)=>a+x.qty,0);return b-s;};
-  const add=(p)=>{const left=stockLeft(p.id);if(left<=0)return;setSale(pv=>{const ex=pv.find(x=>x.productId===p.id);if(ex)return pv.map(x=>x.productId===p.id?{...x,qty:x.qty+1}:x);return[...pv,{productId:p.id,name:p.name,price:p.price,qty:1}];});};
-  const updQ=(pid,d)=>{setSale(pv=>pv.map(x=>x.productId===pid?{...x,qty:x.qty+d}:x).filter(x=>x.qty>0));};
-  const total=sale.reduce((s,x)=>s+x.price*x.qty,0);
-  const submit=async()=>{if(sale.length===0||busy)return;setBusy(true);const total=sale.reduce((s,x)=>s+x.price*x.qty,0);const entry={id:genId(),date:new Date().toISOString(),items:sale.map(x=>({productId:x.productId,name:x.name,price:x.price,qty:x.qty})),total};const nextSales=[entry,...sales];const nextStock={...stockMap};sale.forEach(it=>{const s=stockOf(nextStock,it.productId);if(s!==Infinity)nextStock[String(it.productId)]=Math.max(0,s-it.qty);});try{await dbUS("pos_sales_json",JSON.stringify(nextSales));await dbUS("product_stock_json",JSON.stringify(nextStock));setSale([]);setToast("✓ Transaksi tersimpan "+fmt(total));setTimeout(()=>setToast(""),2500);if(rf)await rf();}catch{alert("Gagal simpan transaksi");}setBusy(false);};
-  return(<div className="pb-40">
-    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100"><p className="text-[11px] text-emerald-700 mb-1">💰 Penjualan Hari Ini</p><p className="text-lg font-bold text-emerald-700">{fmt(todayTotal)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Transaksi</p><p className="text-lg font-bold text-stone-800">{todayS.length}</p></div></div>
-    <Inp placeholder="🔍 Cari produk..." value={q} onChange={e=>setQ(e.target.value)}/>
-    {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:<div className="grid grid-cols-2 gap-2 mb-4">{list.map(p=>{const left=stockLeft(p.id);const dis=left<=0;return(<button key={p.id} onClick={()=>add(p)} disabled={dis} className={`bg-white border-2 rounded-xl p-3 text-left transition ${dis?"opacity-40 cursor-not-allowed border-stone-200":"border-stone-200 hover:border-amber-400 hover:shadow-sm active:scale-95"}`}><p className="text-sm font-bold text-stone-800 truncate mb-0.5">{p.name}</p><p className="text-sm text-amber-700 font-bold">{fmt(p.price)}</p><p className={`text-[10px] mt-1 font-semibold ${left===Infinity?"text-stone-400":left<=0?"text-red-500":left<=5?"text-orange-600":"text-emerald-600"}`}>{left===Infinity?"∞ Unlimited":left<=0?"❌ Habis":`📦 Stok: ${left}`}</p></button>);})}</div>}
-    {sale.length>0&&<div className="fixed bottom-16 left-0 right-0 bg-white border-t-2 border-amber-200 shadow-2xl z-30 max-h-[55vh] overflow-y-auto"><div className="p-4"><p className="text-xs font-bold text-stone-700 mb-3">🛒 Transaksi Aktif ({sale.length} item)</p>
-      {sale.map(x=>(<div key={x.productId} className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-stone-100 last:border-0"><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-stone-800 truncate">{x.name}</p><p className="text-[11px] text-stone-400">{fmt(x.price)} × {x.qty} = {fmt(x.price*x.qty)}</p></div><div className="flex items-center gap-1"><button onClick={()=>updQ(x.productId,-1)} className="w-7 h-7 rounded-full bg-stone-100 text-stone-600 text-sm font-bold">−</button><span className="w-6 text-center text-sm font-bold">{x.qty}</span><button onClick={()=>updQ(x.productId,1)} disabled={stockLeft(x.productId)<=0} className="w-7 h-7 rounded-full bg-stone-100 text-stone-600 text-sm font-bold disabled:opacity-30">+</button></div></div>))}
-      <div className="flex items-center justify-between pt-2 border-t-2 border-stone-200 mb-2"><p className="text-sm font-bold text-stone-700">Total</p><p className="text-xl font-bold text-amber-800">{fmt(total)}</p></div>
-      <div className="flex gap-2"><Btn onClick={()=>setSale([])} variant="ghost">Batal</Btn><Btn onClick={submit} full disabled={busy}>{busy?"Menyimpan...":"💰 Selesaikan"}</Btn></div>
-    </div></div>}
-    {toast&&<div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-emerald-600 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg">{toast}</div>}
-    {todayS.length>0&&<div className="bg-white rounded-2xl p-4 border border-stone-100 mt-4"><p className="text-xs font-bold text-stone-700 mb-3">📋 Riwayat Hari Ini</p>{todayS.slice(0,10).map(s=>(<div key={s.id} className="flex justify-between text-xs py-1.5 border-b border-stone-100 last:border-0"><div className="flex-1 min-w-0"><p className="text-stone-600 truncate">{s.items.map(i=>`${i.name}×${i.qty}`).join(", ")}</p><p className="text-[10px] text-stone-400">{new Date(s.date).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}</p></div><p className="font-bold text-amber-800 ml-2">{fmt(s.total)}</p></div>))}</div>}
-  </div>);
-};
-
 const APurchases = ({products,settings:st,onRefresh:rf}) => {
   const [fm,setFm]=useState({date:todayStr(),name:"",qty:"1",price:"",productId:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
   const purchases=readArr(st?.purchases_json);
@@ -662,20 +636,20 @@ const AExpenses = ({settings:st,onRefresh:rf}) => {
   </div>);
 };
 
-const AReport = ({settings:st}) => {
+const AReport = ({orders,settings:st}) => {
   const [range,setRange]=useState("day");
-  const sales=readArr(st?.pos_sales_json);
   const purchases=readArr(st?.purchases_json);
   const expenses=readArr(st?.expenses_json);
   const check=range==="day"?isSameDay:inWeek;
-  const scopedSales=sales.filter(s=>check(s.date));
+  const ps=["paid","process","done","archived"];
+  const scopedSales=(orders||[]).filter(o=>ps.includes(o.status)&&check(o.order_date));
   const scopedPurchases=purchases.filter(p=>check(p.date));
   const scopedExpenses=expenses.filter(e=>check(e.date));
-  const tSales=scopedSales.reduce((s,x)=>s+(x.total||0),0);
+  const tSales=scopedSales.reduce((s,o)=>s+(o.total||0),0);
   const tPurchases=scopedPurchases.reduce((s,x)=>s+(x.total||0),0);
   const tExpenses=scopedExpenses.reduce((s,x)=>s+(x.amount||0),0);
   const profit=tSales-tPurchases-tExpenses;
-  const pc={};scopedSales.forEach(s=>(s.items||[]).forEach(it=>{const k=it.name;if(!pc[k])pc[k]={qty:0,rev:0};pc[k].qty+=it.qty;pc[k].rev+=it.price*it.qty;}));
+  const pc={};scopedSales.forEach(o=>(o.items||[]).forEach(it=>{const k=it.name;if(!pc[k])pc[k]={qty:0,rev:0};pc[k].qty+=it.qty;pc[k].rev+=(it.price||0)*it.qty;}));
   const top=Object.entries(pc).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
   const label=range==="day"?"Hari Ini":"Minggu Ini";
   return(<div>
@@ -696,17 +670,16 @@ const AReport = ({settings:st}) => {
   </div>);
 };
 
-const APembukuan = ({products,settings:st,onRefresh:rf}) => {
-  const [sub,setSub]=useState("pos");
-  const subs=[{id:"pos",icon:"💵",l:"POS"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"},{id:"report",icon:"📊",l:"Laporan"}];
+const APembukuan = ({products,orders,settings:st,onRefresh:rf}) => {
+  const [sub,setSub]=useState("report");
+  const subs=[{id:"report",icon:"📊",l:"Laporan"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"}];
   return(<div>
     <div className="sticky top-[60px] z-20 -mx-4 px-4 py-2 bg-stone-50/95 backdrop-blur-sm border-b border-stone-100 mb-4">
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">{subs.map(s=>(<button key={s.id} onClick={()=>setSub(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sub===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.l}</button>))}</div>
     </div>
-    {sub==="pos"&&<APos products={products} settings={st} onRefresh={rf}/>}
+    {sub==="report"&&<AReport orders={orders} settings={st}/>}
     {sub==="purchase"&&<APurchases products={products} settings={st} onRefresh={rf}/>}
     {sub==="expense"&&<AExpenses settings={st} onRefresh={rf}/>}
-    {sub==="report"&&<AReport settings={st}/>}
   </div>);
 };
 
@@ -733,7 +706,7 @@ const Admin = ({onLogout}) => {
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
       {tab==="menu"&&<AMenu products={products} settings={settings} onRefresh={load}/>}
-      {tab==="pembukuan"&&<APembukuan products={products} settings={settings} onRefresh={load}/>}
+      {tab==="pembukuan"&&<APembukuan products={products} orders={allOrders} settings={settings} onRefresh={load}/>}
       {tab==="schedule"&&<ASchedule products={products} settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
       {tab==="stats"&&<AStats orders={allOrders} settings={settings} onRefresh={load}/>}
