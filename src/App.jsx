@@ -164,7 +164,7 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedule}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedule,onAddSched}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
   const todayItems=(schedule&&schedule[todayKey()])||[];
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
@@ -184,8 +184,8 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
       </div>
     </div>
     {!loading&&todayItems.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Menu Hari Ini — {todayLabel()}</h2></div>
-      <div className="grid grid-cols-2 gap-3">{todayItems.map((it,i)=>(<div key={i} className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100 shadow-sm"><p className="font-bold text-stone-800 text-sm mb-1">{it.name}</p>{it.description&&<p className="text-[10px] text-stone-500 mb-2 line-clamp-2 leading-relaxed">{it.description}</p>}<p className="text-amber-800 font-bold text-sm">{fmt(Number(it.price)||0)}</p></div>))}</div>
-      <p className="text-xs text-stone-400 mt-3 text-center">Pesan lewat WhatsApp atau katalog di bawah</p>
+      <div className="grid grid-cols-2 gap-3">{todayItems.map((it,i)=>{const price=Number(it.price)||0;const disabled=!it.name||price<=0;return(<button key={i} disabled={disabled} onClick={()=>onAddSched&&onAddSched(it,i)} className={`bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100 shadow-sm text-left flex flex-col group transition-all ${disabled?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-300 active:scale-[0.98]"}`}><p className="font-bold text-stone-800 text-sm mb-1">{it.name||"(belum diisi)"}</p>{it.description&&<p className="text-[10px] text-stone-500 mb-2 line-clamp-2 leading-relaxed">{it.description}</p>}<div className="flex items-center justify-between mt-auto"><p className="text-amber-800 font-bold text-sm">{fmt(price)}</p>{!disabled&&<span className="bg-amber-800 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center shadow group-hover:bg-amber-900 transition">+</span>}</div></button>);})}</div>
+      <p className="text-xs text-stone-400 mt-3 text-center">Klik produk untuk masuk keranjang</p>
     </div>}
     {loading?<Skel/>:(<div className="px-5 pb-8 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
       <div className="flex flex-col gap-3">{bs.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left w-full flex group ${p.is_sold_out?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-200"} transition-all`}>
@@ -560,7 +560,7 @@ export default function App(){
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedule={readSchedule(st.daily_schedule_json)}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedule={readSchedule(st.daily_schedule_json)} onAddSched={(it,i)=>d({type:"ADD",item:{id:`sched-${todayKey()}-${i}`,name:it.name,unitPrice:Number(it.price)||0,qty:1,size:"",flavor:"",note:it.description||"",category:"classic",color:"#D4A574",img:""}})}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
