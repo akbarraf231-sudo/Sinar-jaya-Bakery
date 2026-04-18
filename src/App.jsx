@@ -45,6 +45,18 @@ const todayKey = () => DAYS[(new Date().getDay()+6)%7].key;
 const todayLabel = () => DAYS[(new Date().getDay()+6)%7].label;
 const readSchedIds = (v) => { const p=jp(v,null);const r={};DAYS.forEach(d=>{r[d.key]=Array.isArray(p&&p[d.key])?p[d.key].map(Number).filter(x=>!isNaN(x)):[];});return r; };
 
+const readStockMap = (v) => { const p=jp(v,null); if(!p||typeof p!=="object") return {}; const r={}; Object.keys(p).forEach(k=>{const n=parseInt(p[k]);if(!isNaN(n))r[String(k)]=n;}); return r; };
+const stockOf = (map,pid) => { const v=map[String(pid)]; return v===undefined?Infinity:v; };
+const outOfStock = (p,map) => p.is_sold_out||stockOf(map,p.id)<=0;
+const stockInCart = (cart,pid) => cart.filter(i=>i.id===pid).reduce((s,i)=>s+i.qty,0);
+
+const readArr = (v) => { const p=jp(v,null); return Array.isArray(p)?p:[]; };
+const genId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const todayStr = () => new Date().toISOString().slice(0,10);
+const weekStartStr = () => { const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10); };
+const inWeek = (dateStr) => (dateStr||"").slice(0,10)>=weekStartStr();
+const isSameDay = (dateStr,d=todayStr()) => (dateStr||"").slice(0,10)===d;
+
 const parseImages = (v) => { if(!v) return []; if(typeof v!=="string") return []; const t=v.trim(); if(t.startsWith("[")){ try{const a=JSON.parse(t);return Array.isArray(a)?a.filter(x=>typeof x==="string"&&x):[];}catch{return [v];} } return [v]; };
 const firstImg = (v) => parseImages(v)[0]||"";
 const packImages = (arr) => arr.length<=1?(arr[0]||""):JSON.stringify(arr);
@@ -393,13 +405,15 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
   </div>);
 };
 
-const AMenu = ({products,onRefresh:rf}) => {
+const AMenu = ({products,settings:st,onRefresh:rf}) => {
   const [ed,setEd]=useState(null);
-  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0});
+  const [fm,setFm]=useState({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0,stock:""});
   const [sv,setSv]=useState(false);
+  const stockMap=readStockMap(st?.product_stock_json);
   const addF=()=>setFm(f=>({...f,flavors:[...f.flavors,""]}));const upF=(i,v)=>setFm(f=>({...f,flavors:f.flavors.map((x,j)=>j===i?v:x)}));const rmF=i=>setFm(f=>({...f,flavors:f.flavors.filter((_,j)=>j!==i)}));
   const addS=()=>setFm(f=>({...f,sizes:[...f.sizes,{name:"",add:0}]}));const upS=(i,k,v)=>setFm(f=>({...f,sizes:f.sizes.map((x,j)=>j===i?{...x,[k]:k==="add"?parseInt(v)||0:v}:x)}));const rmS=i=>setFm(f=>({...f,sizes:f.sizes.filter((_,j)=>j!==i)}));
-  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url,flavors:fm.flavors.filter(f=>f.trim()),sizes:fm.sizes.filter(s=>s.name.trim()),discount:Number(fm.discount)||0,max_qty:Number(fm.max_qty)||0};try{if(ed==="new")await dbIP(d);else await dbUP(ed,d);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
+  const persistStock=async(pid,val)=>{const next={...stockMap};if(val===""||val===null||val===undefined)delete next[String(pid)];else next[String(pid)]=Math.max(0,parseInt(val)||0);await dbUS("product_stock_json",JSON.stringify(next));};
+  const save=async()=>{if(!fm.name||!fm.price)return;setSv(true);const d={name:fm.name,price:Number(fm.price),category:fm.category,label:fm.label,description:fm.description,color:fm.color,image_url:fm.image_url,flavors:fm.flavors.filter(f=>f.trim()),sizes:fm.sizes.filter(s=>s.name.trim()),discount:Number(fm.discount)||0,max_qty:Number(fm.max_qty)||0};try{let pid=ed;if(ed==="new"){const res=await dbIP(d);pid=Array.isArray(res)&&res[0]?.id||null;}else await dbUP(ed,d);if(pid)await persistStock(pid,fm.stock);await rf();setEd(null);}catch{alert("Gagal menyimpan");}setSv(false);};
 
   if(ed!==null) return(<div className="bg-white rounded-2xl p-5 border border-stone-100">
     <h3 className="font-bold text-stone-800 mb-4">{ed==="new"?"Tambah Produk":"Edit Produk"}</h3>
@@ -407,7 +421,10 @@ const AMenu = ({products,onRefresh:rf}) => {
     <Inp label="Nama" value={fm.name} onChange={e=>setFm(f=>({...f,name:e.target.value}))}/>
     <Inp label="Harga" type="number" value={fm.price} onChange={e=>setFm(f=>({...f,price:e.target.value}))}/>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Diskon <span className="text-stone-400 font-normal text-xs">(% — 0 = tanpa diskon)</span></label><div className="flex items-center gap-3"><input type="number" min="0" max="100" value={fm.discount||0} onChange={e=>setFm(f=>({...f,discount:Math.min(100,Math.max(0,parseInt(e.target.value)||0))}))} className="w-24 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><span className="text-sm text-stone-500">%</span>{fm.discount>0&&fm.price&&<span className="text-xs text-emerald-600 font-medium">→ {fmt(Math.round(Number(fm.price)*(1-fm.discount/100)))}</span>}</div></div>
-    <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Maks. Qty per Order <span className="text-stone-400 font-normal text-xs">(0 = tanpa batas)</span></label><input type="number" min="0" value={fm.max_qty||0} onChange={e=>setFm(f=>({...f,max_qty:parseInt(e.target.value)||0}))} className="w-32 border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <div><label className="block text-sm font-medium text-stone-600 mb-1.5">Maks. Qty/Order <span className="text-stone-400 font-normal text-xs">(0=∞)</span></label><input type="number" min="0" value={fm.max_qty||0} onChange={e=>setFm(f=>({...f,max_qty:parseInt(e.target.value)||0}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      <div><label className="block text-sm font-medium text-stone-600 mb-1.5">📦 Stok <span className="text-stone-400 font-normal text-xs">(kosong=∞)</span></label><input type="number" min="0" value={fm.stock} onChange={e=>setFm(f=>({...f,stock:e.target.value}))} placeholder="Unlimited" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+    </div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category==="harian"?"classic":fm.category} onChange={e=>setFm(f=>({...f,category:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="classic">Daily Selection</option><option value="savory">Savory Snack Selection</option><option value="special">Special</option></select><p className="text-xs text-stone-400 mt-1">Daily = menu harian. Savory = cemilan gurih. Special perlu H-5.</p></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Sub-kategori <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.subcategory||""} onChange={e=>setFm(f=>({...f,subcategory:e.target.value}))} placeholder="Contoh: Roti Manis, Kue Kering" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
     <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Label <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><input value={fm.label} onChange={e=>setFm(f=>({...f,label:e.target.value}))} placeholder="Contoh: Best Seller, Diskon 20%, Baru" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
@@ -418,9 +435,9 @@ const AMenu = ({products,onRefresh:rf}) => {
     <div className="flex gap-2"><Btn onClick={save} full disabled={sv}>{sv?"Menyimpan...":"💾 Simpan"}</Btn><Btn onClick={()=>setEd(null)} variant="ghost" full>Batal</Btn></div></div>);
 
   return(<div>
-    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
-    {products.map(p=>(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out?"opacity-60":""}`}><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={firstImg(p.image_url)} size="sm"/></div><div><p className="font-bold text-sm text-stone-800">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Habis</span>}{p.discount>0&&<span className="text-emerald-600 text-xs font-normal ml-2">-{p.discount}%</span>}</p><p className="text-xs text-stone-400">{p.category==="special"?"Special":p.category==="savory"?"Savory":"Daily"} · {fmt(p.price)}{p.max_qty>0&&` · Max ${p.max_qty}`}</p></div></div>
-      <div className="flex gap-1"><button onClick={async()=>{try{await dbSO(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button><button onClick={()=>{const fl=jp(p.flavors,[]),sz=jp(p.sizes,[]);setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[],discount:p.discount||0,max_qty:p.max_qty||0});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button><button onClick={async()=>{try{await dbDP(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button></div></div></div>))}
+    <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0,stock:""});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
+    {products.map(p=>{const s=stockOf(stockMap,p.id);const stockLabel=s===Infinity?"∞":s<=0?"Habis":s;const stockCls=s===Infinity?"text-stone-400":s<=0?"text-red-600 bg-red-50":s<=5?"text-orange-600 bg-orange-50":"text-emerald-600 bg-emerald-50";return(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out||s<=0?"opacity-60":""}`}><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-3 min-w-0 flex-1"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={firstImg(p.image_url)} size="sm"/></div><div className="min-w-0 flex-1"><p className="font-bold text-sm text-stone-800 truncate">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Manual Habis</span>}{p.discount>0&&<span className="text-emerald-600 text-xs font-normal ml-2">-{p.discount}%</span>}</p><div className="flex items-center gap-1.5 flex-wrap"><p className="text-xs text-stone-400">{p.category==="special"?"Special":p.category==="savory"?"Savory":"Daily"} · {fmt(p.price)}</p><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stockCls}`}>📦 {stockLabel}</span></div></div></div>
+      <div className="flex gap-1 flex-shrink-0"><button onClick={async()=>{try{await dbSO(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button><button onClick={()=>{const fl=jp(p.flavors,[]),sz=jp(p.sizes,[]);const cur=stockMap[String(p.id)];setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz:[],discount:p.discount||0,max_qty:p.max_qty||0,stock:cur===undefined?"":String(cur)});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button><button onClick={async()=>{try{await dbDP(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button></div></div></div>);})}
   </div>);
 };
 
@@ -571,6 +588,128 @@ const ASchedule = ({products,settings:st,onRefresh:rf}) => {
   </div>);
 };
 
+const APos = ({products,settings:st,onRefresh:rf}) => {
+  const [sale,setSale]=useState([]);const [q,setQ]=useState("");const [busy,setBusy]=useState(false);const [toast,setToast]=useState("");
+  const stockMap=readStockMap(st?.product_stock_json);
+  const sales=readArr(st?.pos_sales_json);
+  const todayS=sales.filter(s=>isSameDay(s.date));
+  const todayTotal=todayS.reduce((a,s)=>a+(s.total||0),0);
+  const list=products.filter(p=>!p.is_sold_out&&(!q||p.name.toLowerCase().includes(q.toLowerCase())));
+  const stockLeft=(pid)=>{const b=stockOf(stockMap,pid);if(b===Infinity)return Infinity;const s=sale.filter(x=>x.productId===pid).reduce((a,x)=>a+x.qty,0);return b-s;};
+  const add=(p)=>{const left=stockLeft(p.id);if(left<=0)return;setSale(pv=>{const ex=pv.find(x=>x.productId===p.id);if(ex)return pv.map(x=>x.productId===p.id?{...x,qty:x.qty+1}:x);return[...pv,{productId:p.id,name:p.name,price:p.price,qty:1}];});};
+  const updQ=(pid,d)=>{setSale(pv=>pv.map(x=>x.productId===pid?{...x,qty:x.qty+d}:x).filter(x=>x.qty>0));};
+  const total=sale.reduce((s,x)=>s+x.price*x.qty,0);
+  const submit=async()=>{if(sale.length===0||busy)return;setBusy(true);const total=sale.reduce((s,x)=>s+x.price*x.qty,0);const entry={id:genId(),date:new Date().toISOString(),items:sale.map(x=>({productId:x.productId,name:x.name,price:x.price,qty:x.qty})),total};const nextSales=[entry,...sales];const nextStock={...stockMap};sale.forEach(it=>{const s=stockOf(nextStock,it.productId);if(s!==Infinity)nextStock[String(it.productId)]=Math.max(0,s-it.qty);});try{await dbUS("pos_sales_json",JSON.stringify(nextSales));await dbUS("product_stock_json",JSON.stringify(nextStock));setSale([]);setToast("✓ Transaksi tersimpan "+fmt(total));setTimeout(()=>setToast(""),2500);if(rf)await rf();}catch{alert("Gagal simpan transaksi");}setBusy(false);};
+  return(<div className="pb-40">
+    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100"><p className="text-[11px] text-emerald-700 mb-1">💰 Penjualan Hari Ini</p><p className="text-lg font-bold text-emerald-700">{fmt(todayTotal)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Transaksi</p><p className="text-lg font-bold text-stone-800">{todayS.length}</p></div></div>
+    <Inp placeholder="🔍 Cari produk..." value={q} onChange={e=>setQ(e.target.value)}/>
+    {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:<div className="grid grid-cols-2 gap-2 mb-4">{list.map(p=>{const left=stockLeft(p.id);const dis=left<=0;return(<button key={p.id} onClick={()=>add(p)} disabled={dis} className={`bg-white border-2 rounded-xl p-3 text-left transition ${dis?"opacity-40 cursor-not-allowed border-stone-200":"border-stone-200 hover:border-amber-400 hover:shadow-sm active:scale-95"}`}><p className="text-sm font-bold text-stone-800 truncate mb-0.5">{p.name}</p><p className="text-sm text-amber-700 font-bold">{fmt(p.price)}</p><p className={`text-[10px] mt-1 font-semibold ${left===Infinity?"text-stone-400":left<=0?"text-red-500":left<=5?"text-orange-600":"text-emerald-600"}`}>{left===Infinity?"∞ Unlimited":left<=0?"❌ Habis":`📦 Stok: ${left}`}</p></button>);})}</div>}
+    {sale.length>0&&<div className="fixed bottom-16 left-0 right-0 bg-white border-t-2 border-amber-200 shadow-2xl z-30 max-h-[55vh] overflow-y-auto"><div className="p-4"><p className="text-xs font-bold text-stone-700 mb-3">🛒 Transaksi Aktif ({sale.length} item)</p>
+      {sale.map(x=>(<div key={x.productId} className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-stone-100 last:border-0"><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-stone-800 truncate">{x.name}</p><p className="text-[11px] text-stone-400">{fmt(x.price)} × {x.qty} = {fmt(x.price*x.qty)}</p></div><div className="flex items-center gap-1"><button onClick={()=>updQ(x.productId,-1)} className="w-7 h-7 rounded-full bg-stone-100 text-stone-600 text-sm font-bold">−</button><span className="w-6 text-center text-sm font-bold">{x.qty}</span><button onClick={()=>updQ(x.productId,1)} disabled={stockLeft(x.productId)<=0} className="w-7 h-7 rounded-full bg-stone-100 text-stone-600 text-sm font-bold disabled:opacity-30">+</button></div></div>))}
+      <div className="flex items-center justify-between pt-2 border-t-2 border-stone-200 mb-2"><p className="text-sm font-bold text-stone-700">Total</p><p className="text-xl font-bold text-amber-800">{fmt(total)}</p></div>
+      <div className="flex gap-2"><Btn onClick={()=>setSale([])} variant="ghost">Batal</Btn><Btn onClick={submit} full disabled={busy}>{busy?"Menyimpan...":"💰 Selesaikan"}</Btn></div>
+    </div></div>}
+    {toast&&<div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-emerald-600 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg">{toast}</div>}
+    {todayS.length>0&&<div className="bg-white rounded-2xl p-4 border border-stone-100 mt-4"><p className="text-xs font-bold text-stone-700 mb-3">📋 Riwayat Hari Ini</p>{todayS.slice(0,10).map(s=>(<div key={s.id} className="flex justify-between text-xs py-1.5 border-b border-stone-100 last:border-0"><div className="flex-1 min-w-0"><p className="text-stone-600 truncate">{s.items.map(i=>`${i.name}×${i.qty}`).join(", ")}</p><p className="text-[10px] text-stone-400">{new Date(s.date).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}</p></div><p className="font-bold text-amber-800 ml-2">{fmt(s.total)}</p></div>))}</div>}
+  </div>);
+};
+
+const APurchases = ({products,settings:st,onRefresh:rf}) => {
+  const [fm,setFm]=useState({date:todayStr(),name:"",qty:"1",price:"",productId:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
+  const purchases=readArr(st?.purchases_json);
+  const stockMap=readStockMap(st?.product_stock_json);
+  const today=purchases.filter(p=>isSameDay(p.date));const week=purchases.filter(p=>inWeek(p.date));
+  const todayT=today.reduce((s,p)=>s+(p.total||0),0);const weekT=week.reduce((s,p)=>s+(p.total||0),0);
+  const save=async()=>{if(!fm.name||!fm.price||busy)return;setBusy(true);const qty=Math.max(1,parseInt(fm.qty)||1);const price=Math.max(0,parseInt(fm.price)||0);const entry={id:genId(),date:fm.date,name:fm.name,qty,price,total:qty*price,productId:fm.productId||null};const next=[entry,...purchases];try{if(fm.productId){const ns={...stockMap};const cur=stockOf(ns,fm.productId);ns[String(fm.productId)]=(cur===Infinity?0:cur)+qty;await dbUS("product_stock_json",JSON.stringify(ns));}await dbUS("purchases_json",JSON.stringify(next));setFm({date:todayStr(),name:"",qty:"1",price:"",productId:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
+  const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
+  return(<div>
+    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Hari Ini</p><p className="text-lg font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Minggu Ini</p><p className="text-lg font-bold text-orange-600">{fmt(weekT)}</p></div></div>
+    {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pembelian Baru</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
+      <p className="text-sm font-bold text-stone-800 mb-3">📥 Pembelian Baru</p>
+      <Inp label="Tanggal" type="date" value={fm.date} onChange={e=>setFm(f=>({...f,date:e.target.value}))}/>
+      <Inp label="Nama Barang" value={fm.name} onChange={e=>setFm(f=>({...f,name:e.target.value}))} placeholder="Tepung, gula, donut isi 20, dll"/>
+      <div className="grid grid-cols-2 gap-2">
+        <Inp label="Qty" type="number" value={fm.qty} onChange={e=>setFm(f=>({...f,qty:e.target.value}))}/>
+        <Inp label="Harga Satuan (Rp)" type="number" value={fm.price} onChange={e=>setFm(f=>({...f,price:e.target.value}))}/>
+      </div>
+      <div className="mb-3"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tambah ke Stok Produk <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><select value={fm.productId} onChange={e=>setFm(f=>({...f,productId:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="">-- Tidak terhubung produk --</option>{products.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}</select><p className="text-xs text-stone-400 mt-1">Jika dipilih, stok produk akan bertambah otomatis</p></div>
+      {fm.qty&&fm.price&&<p className="text-sm text-stone-600 mb-3">Total: <span className="font-bold text-amber-800">{fmt((parseInt(fm.qty)||1)*(parseInt(fm.price)||0))}</span></p>}
+      <div className="flex gap-2"><Btn onClick={save} full disabled={busy}>{busy?"Menyimpan...":"💾 Simpan"}</Btn><Btn onClick={()=>setShow(false)} variant="ghost">Batal</Btn></div>
+    </div>}
+    {purchases.length===0?<div className="text-center py-10 text-stone-300"><p className="text-4xl mb-2">📥</p><p className="text-sm text-stone-400">Belum ada pembelian</p></div>:purchases.slice(0,50).map(p=>(<div key={p.id} className="bg-white rounded-2xl p-4 mb-2 border border-stone-100"><div className="flex justify-between items-start gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{p.date} · {p.qty}× @ {fmt(p.price)}{p.productId&&<span className="ml-2 text-emerald-600">+ stok</span>}</p></div><div className="flex items-center gap-2"><p className="font-bold text-orange-600 text-sm whitespace-nowrap">{fmt(p.total)}</p><button onClick={()=>del(p.id)} className="text-red-400 hover:bg-red-50 w-7 h-7 rounded-lg">🗑️</button></div></div></div>))}
+  </div>);
+};
+
+const AExpenses = ({settings:st,onRefresh:rf}) => {
+  const [fm,setFm]=useState({date:todayStr(),category:"Operasional",description:"",amount:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
+  const expenses=readArr(st?.expenses_json);
+  const today=expenses.filter(e=>isSameDay(e.date));const week=expenses.filter(e=>inWeek(e.date));
+  const todayT=today.reduce((s,e)=>s+(e.amount||0),0);const weekT=week.reduce((s,e)=>s+(e.amount||0),0);
+  const cats=["Operasional","Listrik","Gas","Air","Gaji","Transport","Perawatan","Lainnya"];
+  const save=async()=>{if(!fm.description||!fm.amount||busy)return;setBusy(true);const entry={id:genId(),date:fm.date,category:fm.category,description:fm.description,amount:Math.max(0,parseInt(fm.amount)||0)};const next=[entry,...expenses];try{await dbUS("expenses_json",JSON.stringify(next));setFm({date:todayStr(),category:"Operasional",description:"",amount:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pengeluaran");}setBusy(false);};
+  const del=async(id)=>{if(!confirm("Hapus pengeluaran ini?"))return;const next=expenses.filter(e=>e.id!==id);try{await dbUS("expenses_json",JSON.stringify(next));if(rf)await rf();}catch{}};
+  return(<div>
+    <div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Hari Ini</p><p className="text-lg font-bold text-red-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-4 border border-stone-100"><p className="text-[11px] text-stone-400 mb-1">Minggu Ini</p><p className="text-lg font-bold text-red-600">{fmt(weekT)}</p></div></div>
+    {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pengeluaran</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
+      <p className="text-sm font-bold text-stone-800 mb-3">💸 Pengeluaran Baru</p>
+      <Inp label="Tanggal" type="date" value={fm.date} onChange={e=>setFm(f=>({...f,date:e.target.value}))}/>
+      <div className="mb-3"><label className="block text-sm font-medium text-stone-600 mb-1.5">Kategori</label><select value={fm.category} onChange={e=>setFm(f=>({...f,category:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50">{cats.map(c=>(<option key={c} value={c}>{c}</option>))}</select></div>
+      <Inp label="Deskripsi" value={fm.description} onChange={e=>setFm(f=>({...f,description:e.target.value}))} placeholder="Bayar listrik April, dll"/>
+      <Inp label="Jumlah (Rp)" type="number" value={fm.amount} onChange={e=>setFm(f=>({...f,amount:e.target.value}))}/>
+      <div className="flex gap-2"><Btn onClick={save} full disabled={busy}>{busy?"Menyimpan...":"💾 Simpan"}</Btn><Btn onClick={()=>setShow(false)} variant="ghost">Batal</Btn></div>
+    </div>}
+    {expenses.length===0?<div className="text-center py-10 text-stone-300"><p className="text-4xl mb-2">💸</p><p className="text-sm text-stone-400">Belum ada pengeluaran</p></div>:expenses.slice(0,50).map(e=>(<div key={e.id} className="bg-white rounded-2xl p-4 mb-2 border border-stone-100"><div className="flex justify-between items-start gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><span className="text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded">{e.category}</span></div><p className="font-semibold text-sm text-stone-800 truncate">{e.description}</p><p className="text-[11px] text-stone-400">{e.date}</p></div><div className="flex items-center gap-2"><p className="font-bold text-red-600 text-sm whitespace-nowrap">−{fmt(e.amount)}</p><button onClick={()=>del(e.id)} className="text-red-400 hover:bg-red-50 w-7 h-7 rounded-lg">🗑️</button></div></div></div>))}
+  </div>);
+};
+
+const AReport = ({settings:st}) => {
+  const [range,setRange]=useState("day");
+  const sales=readArr(st?.pos_sales_json);
+  const purchases=readArr(st?.purchases_json);
+  const expenses=readArr(st?.expenses_json);
+  const check=range==="day"?isSameDay:inWeek;
+  const scopedSales=sales.filter(s=>check(s.date));
+  const scopedPurchases=purchases.filter(p=>check(p.date));
+  const scopedExpenses=expenses.filter(e=>check(e.date));
+  const tSales=scopedSales.reduce((s,x)=>s+(x.total||0),0);
+  const tPurchases=scopedPurchases.reduce((s,x)=>s+(x.total||0),0);
+  const tExpenses=scopedExpenses.reduce((s,x)=>s+(x.amount||0),0);
+  const profit=tSales-tPurchases-tExpenses;
+  const pc={};scopedSales.forEach(s=>(s.items||[]).forEach(it=>{const k=it.name;if(!pc[k])pc[k]={qty:0,rev:0};pc[k].qty+=it.qty;pc[k].rev+=it.price*it.qty;}));
+  const top=Object.entries(pc).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
+  const label=range==="day"?"Hari Ini":"Minggu Ini";
+  return(<div>
+    <div className="flex gap-2 mb-4">{[{k:"day",l:"Hari Ini"},{k:"week",l:"Minggu Ini"}].map(x=>(<button key={x.k} onClick={()=>setRange(x.k)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${range===x.k?"bg-amber-800 text-white shadow":"bg-white border border-stone-200 text-stone-600"}`}>{x.l}</button>))}</div>
+    <div className={`rounded-2xl p-5 mb-4 border-2 ${profit>=0?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}>
+      <p className="text-xs text-stone-500 mb-1">{profit>=0?"🎉 Laba":"⚠️ Rugi"} — {label}</p>
+      <p className={`text-3xl font-bold ${profit>=0?"text-emerald-700":"text-red-600"}`}>{profit<0?"−":""}{fmt(Math.abs(profit))}</p>
+    </div>
+    <div className="bg-white rounded-2xl p-5 mb-4 border border-stone-100 space-y-3">
+      <div className="flex justify-between items-center"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/><p className="text-sm text-stone-600">Penjualan</p></div><p className="font-bold text-emerald-700">{fmt(tSales)}</p></div>
+      <div className="flex justify-between items-center"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/><p className="text-sm text-stone-600">Pembelian</p></div><p className="font-bold text-orange-600">−{fmt(tPurchases)}</p></div>
+      <div className="flex justify-between items-center"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/><p className="text-sm text-stone-600">Pengeluaran</p></div><p className="font-bold text-red-600">−{fmt(tExpenses)}</p></div>
+      <div className="flex justify-between items-center pt-3 border-t border-stone-200"><p className="font-bold text-stone-800">= Laba/Rugi</p><p className={`font-bold ${profit>=0?"text-emerald-700":"text-red-600"}`}>{profit<0?"−":""}{fmt(Math.abs(profit))}</p></div>
+    </div>
+    <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Transaksi</p><p className="text-lg font-bold text-stone-800">{scopedSales.length}</p></div><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Pembelian</p><p className="text-lg font-bold text-stone-800">{scopedPurchases.length}</p></div><div className="bg-white rounded-xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">Pengeluaran</p><p className="text-lg font-bold text-stone-800">{scopedExpenses.length}</p></div></div>
+    <h3 className="font-bold text-sm text-stone-800 mb-3">🏆 Produk Terlaris ({label})</h3>
+    {top.length===0?<p className="text-sm text-stone-400 text-center py-6">Belum ada penjualan</p>:top.map(([n,x],i)=>(<div key={n} className="bg-white rounded-2xl p-4 mb-2 flex items-center justify-between border border-stone-100"><div className="flex items-center gap-3 min-w-0 flex-1"><span className="text-sm font-bold text-stone-300 w-6">#{i+1}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-stone-800 truncate">{n}</p><p className="text-[11px] text-stone-400">{x.qty}× terjual</p></div></div><p className="text-sm font-bold text-emerald-700 whitespace-nowrap ml-2">{fmt(x.rev)}</p></div>))}
+  </div>);
+};
+
+const APembukuan = ({products,settings:st,onRefresh:rf}) => {
+  const [sub,setSub]=useState("pos");
+  const subs=[{id:"pos",icon:"💵",l:"POS"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"},{id:"report",icon:"📊",l:"Laporan"}];
+  return(<div>
+    <div className="sticky top-[60px] z-20 -mx-4 px-4 py-2 bg-stone-50/95 backdrop-blur-sm border-b border-stone-100 mb-4">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">{subs.map(s=>(<button key={s.id} onClick={()=>setSub(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sub===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.l}</button>))}</div>
+    </div>
+    {sub==="pos"&&<APos products={products} settings={st} onRefresh={rf}/>}
+    {sub==="purchase"&&<APurchases products={products} settings={st} onRefresh={rf}/>}
+    {sub==="expense"&&<AExpenses settings={st} onRefresh={rf}/>}
+    {sub==="report"&&<AReport settings={st}/>}
+  </div>);
+};
+
 const Admin = ({onLogout}) => {
   const [tab,setTab]=useState("orders");
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [allOrders,setAllOrders]=useState([]);const [cd,setCd]=useState([]);const [settings,setSettings]=useState({});const [loading,setLoading]=useState(true);
@@ -585,7 +724,7 @@ const Admin = ({onLogout}) => {
 
   useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
 
-  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
+  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"pembukuan",icon:"📒",label:"Pembukuan"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
@@ -593,7 +732,8 @@ const Admin = ({onLogout}) => {
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-100 px-4 py-3.5 flex items-center justify-between"><h1 className="font-bold text-stone-800">Admin SJB</h1><button onClick={()=>{logoutAuth();onLogout();}} className="text-xs text-red-400 hover:text-red-600 font-medium transition">Logout</button></header>
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
-      {tab==="menu"&&<AMenu products={products} onRefresh={load}/>}
+      {tab==="menu"&&<AMenu products={products} settings={settings} onRefresh={load}/>}
+      {tab==="pembukuan"&&<APembukuan products={products} settings={settings} onRefresh={load}/>}
       {tab==="schedule"&&<ASchedule products={products} settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
       {tab==="stats"&&<AStats orders={allOrders} settings={settings} onRefresh={load}/>}
@@ -628,17 +768,19 @@ export default function App(){
   if(ok)return(<div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center px-5"><div className="text-center"><div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">✅</span></div><h2 className="text-xl font-bold text-stone-800 mb-2">Order Terkirim!</h2><p className="text-sm text-stone-400 mb-8 max-w-xs mx-auto leading-relaxed">Lanjutkan di WhatsApp untuk konfirmasi pembayaran.</p><Btn onClick={()=>{d({type:"CLR"});setCo(null);setOk(false);goH();}}>🏠 Kembali ke Beranda</Btn></div></div>);
 
   const pr=pid?products.find(p=>p.id===pid):null;
+  const stockMap=readStockMap(st.product_stock_json);
+  const refreshStock=async()=>{try{const s=await dbS();const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}};
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
-    {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH} schedIds={readSchedIds(st.daily_schedule_json)}/>}
-    {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH}/>}
-    {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
+    {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap}/>}
+    {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH} stockMap={stockMap}/>}
+    {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH} stockMap={stockMap}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
-    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
+    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
     {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
   </>);
 }
