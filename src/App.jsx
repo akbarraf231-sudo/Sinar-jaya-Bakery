@@ -40,6 +40,12 @@ const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
 const dfmt = (d) => { const D=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"],M=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]; return `${D[d.getDay()]}, ${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()}`; };
 const jp = (v,fb=[]) => { if(!v) return fb; if(typeof v==="string") try{return JSON.parse(v)}catch{return fb;} return v; };
 
+const DAYS = [{key:"monday",label:"Senin"},{key:"tuesday",label:"Selasa"},{key:"wednesday",label:"Rabu"},{key:"thursday",label:"Kamis"},{key:"friday",label:"Jumat"},{key:"saturday",label:"Sabtu"},{key:"sunday",label:"Minggu"}];
+const todayKey = () => DAYS[(new Date().getDay()+6)%7].key;
+const todayLabel = () => DAYS[(new Date().getDay()+6)%7].label;
+const emptySchedule = () => DAYS.reduce((a,d)=>({...a,[d.key]:[]}),{});
+const readSchedule = (v) => { const fb=emptySchedule();const p=jp(v,null);if(!p||typeof p!=="object")return fb;return DAYS.reduce((a,d)=>({...a,[d.key]:Array.isArray(p[d.key])?p[d.key]:[]}),{}); };
+
 const applyVoucher = (code,list,subtotal) => {
   if(!code||!code.trim()) return {ok:false,err:"",discount:0,voucher:null};
   const v=(list||[]).find(x=>(x.code||"").toUpperCase()===code.trim().toUpperCase());
@@ -158,8 +164,9 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedule}) => {
   const bs=products.filter(p=>p.label==="Best Seller").slice(0,3);
+  const todayItems=(schedule&&schedule[todayKey()])||[];
   const hs=heroBg?{backgroundImage:`linear-gradient(to bottom,rgba(62,39,18,0.55),rgba(62,39,18,0.75)),url(${heroBg})`,backgroundSize:"cover",backgroundPosition:"center"}:{};
   return(<Shell>
     <div className={`text-white px-6 pt-14 pb-12 text-center relative overflow-hidden ${!heroBg?"bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900":""}`} style={hs}>
@@ -176,7 +183,11 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
         <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-3 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
     </div>
-    {loading?<Skel/>:(<div className="px-5 pb-8"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
+    {!loading&&todayItems.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Menu Hari Ini — {todayLabel()}</h2></div>
+      <div className="grid grid-cols-2 gap-3">{todayItems.map((it,i)=>(<div key={i} className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100 shadow-sm"><p className="font-bold text-stone-800 text-sm mb-1">{it.name}</p>{it.description&&<p className="text-[10px] text-stone-500 mb-2 line-clamp-2 leading-relaxed">{it.description}</p>}<p className="text-amber-800 font-bold text-sm">{fmt(Number(it.price)||0)}</p></div>))}</div>
+      <p className="text-xs text-stone-400 mt-3 text-center">Pesan lewat WhatsApp atau katalog di bawah</p>
+    </div>}
+    {loading?<Skel/>:(<div className="px-5 pb-8 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">Favorit Pelanggan</h2></div>
       <div className="flex flex-col gap-3">{bs.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 text-left w-full flex group ${p.is_sold_out?"opacity-60 cursor-not-allowed":"hover:shadow-md hover:border-amber-200"} transition-all`}>
         <div className="w-28 min-h-[100px] flex-shrink-0 overflow-hidden relative"><Img name={p.name} color={p.color} img={p.image_url} size="md"/>{p.is_sold_out&&<div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">Habis</span></div>}</div>
         <div className="flex-1 p-4 flex flex-col justify-center"><div className="flex items-center gap-2 mb-1"><span className="font-bold text-stone-800">{p.name}</span><LB label={p.label}/></div><p className="text-xs text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.recommendation}</p><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/></div>
@@ -457,6 +468,39 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   </div>);
 };
 
+const ASchedule = ({settings:st,onRefresh:rf}) => {
+  const [sched,setSched]=useState(()=>readSchedule(st.daily_schedule_json));
+  const [day,setDay]=useState(todayKey());const [sv,setSv]=useState(false);const [err,setErr]=useState("");
+  const persist=async(next)=>{setSv(true);setErr("");try{await dbUS("daily_schedule_json",JSON.stringify(next));setSched(next);if(rf)rf();}catch(e){setErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
+  const items=sched[day]||[];
+  const update=(i,k,val)=>{const n={...sched,[day]:items.map((x,j)=>j===i?{...x,[k]:val}:x)};setSched(n);};
+  const commit=()=>persist(sched);
+  const add=()=>persist({...sched,[day]:[...items,{name:"",price:0,description:""}]});
+  const remove=(i)=>{if(!confirm("Hapus item ini?"))return;persist({...sched,[day]:items.filter((_,j)=>j!==i)});};
+  const copyFrom=(srcKey)=>{if(!confirm(`Salin semua menu dari ${DAYS.find(x=>x.key===srcKey).label} ke ${DAYS.find(x=>x.key===day).label}?`))return;persist({...sched,[day]:(sched[srcKey]||[]).map(x=>({...x}))});};
+
+  return(<div className="space-y-4">
+    {err&&<div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-2xl border border-red-200">⚠️ {err}</div>}
+    <div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <h3 className="font-bold text-stone-800 mb-1">🗓️ Jadwal Produk Harian</h3>
+      <p className="text-xs text-stone-400 mb-4">Atur menu yang tampil di beranda sesuai hari. Hari ini: <span className="font-semibold text-amber-700">{todayLabel()}</span></p>
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">{DAYS.map(dd=>(<button key={dd.key} onClick={()=>setDay(dd.key)} className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${day===dd.key?"bg-amber-800 text-white shadow":"bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>{dd.label}{dd.key===todayKey()&&" ·"}{(sched[dd.key]||[]).length>0&&<span className="ml-1 text-[10px] opacity-70">({(sched[dd.key]||[]).length})</span>}</button>))}</div>
+
+      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold text-stone-700">Menu {DAYS.find(x=>x.key===day).label}</p><select onChange={e=>{if(e.target.value){copyFrom(e.target.value);e.target.value="";}}} className="text-xs border border-stone-200 rounded-xl px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"><option value="">Salin dari...</option>{DAYS.filter(d=>d.key!==day).map(d=>(<option key={d.key} value={d.key}>{d.label} ({(sched[d.key]||[]).length})</option>))}</select></div>
+
+      {items.length===0&&<p className="text-sm text-stone-400 mb-3">Belum ada menu untuk hari ini</p>}
+      {items.map((it,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+        <div className="flex items-center justify-between mb-3"><span className="text-xs font-semibold text-stone-500">Item #{i+1}</span><button onClick={()=>remove(i)} className="text-red-400 hover:text-red-600 text-sm" title="Hapus">🗑️</button></div>
+        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Nama Produk</label><input value={it.name||""} onChange={e=>update(i,"name",e.target.value)} onBlur={commit} placeholder="Contoh: Roti Tawar" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        <div className="mb-2"><label className="block text-xs font-medium text-stone-500 mb-1">Harga (Rp)</label><input type="number" min="0" value={it.price||0} onChange={e=>update(i,"price",parseInt(e.target.value)||0)} onBlur={commit} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+        <div><label className="block text-xs font-medium text-stone-500 mb-1">Deskripsi <span className="text-stone-400">(opsional)</span></label><input value={it.description||""} onChange={e=>update(i,"description",e.target.value)} onBlur={commit} placeholder="Contoh: Lembut, fresh dari oven" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+      </div>))}
+      <button onClick={add} className="text-sm text-amber-700 font-medium hover:text-amber-900 transition">+ Tambah Item</button>
+      {sv&&<p className="text-xs text-amber-600 mt-2">Menyimpan...</p>}
+    </div>
+  </div>);
+};
+
 const Admin = ({onLogout}) => {
   const [tab,setTab]=useState("orders");
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [allOrders,setAllOrders]=useState([]);const [cd,setCd]=useState([]);const [settings,setSettings]=useState({});const [loading,setLoading]=useState(true);
@@ -471,7 +515,7 @@ const Admin = ({onLogout}) => {
 
   useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
 
-  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
+  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
@@ -480,6 +524,7 @@ const Admin = ({onLogout}) => {
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
       {tab==="menu"&&<AMenu products={products} onRefresh={load}/>}
+      {tab==="schedule"&&<ASchedule settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
       {tab==="stats"&&<AStats orders={allOrders}/>}
       {tab==="settings"&&<ASettings settings={settings} onRefresh={load}/>}
@@ -493,26 +538,29 @@ const Admin = ({onLogout}) => {
 export default function App(){
   const [pg,setPg]=useState("home");const [cat,setCat]=useState("");const [pid,setPid]=useState(null);
   const [cart,d]=useReducer(cR,[]);const [co,setCo]=useState(null);
-  const [isA,setIsA]=useState(false);const [aLog,setALog]=useState(false);const [ok,setOk]=useState(false);
+  const [isA,setIsA]=useState(()=>typeof window!=="undefined"&&window.location.pathname.replace(/\/+$/,"")==="/admin");const [aLog,setALog]=useState(false);const [ok,setOk]=useState(false);
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [cd,setCd]=useState([]);const [st,setSt]=useState({});const [ld,setLd]=useState(true);
 
-  const goH=()=>{setPg("home");setCat("");setPid(null);};
+  const goH=()=>{setPg("home");setCat("");setPid(null);if(typeof window!=="undefined"&&window.location.pathname!=="/"){window.history.pushState({},"","/");}};
 
   useEffect(()=>{(async()=>{try{const [p,s]=await Promise.all([dbP(),dbS()]);setProducts(p||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}setLd(false);})();},[]);
+  useEffect(()=>{const onPop=()=>setIsA(window.location.pathname.replace(/\/+$/,"")==="/admin");window.addEventListener("popstate",onPop);return()=>window.removeEventListener("popstate",onPop);},[]);
+  const openAdmin=()=>{if(typeof window!=="undefined")window.history.pushState({},"","/admin");setIsA(true);};
+  const closeAdmin=()=>{setALog(false);setIsA(false);if(typeof window!=="undefined")window.history.pushState({},"","/");};
 
   const loadCO=async()=>{try{const [o,c]=await Promise.all([dbO(),dbCD()]);setOrders(o||[]);setCd(c||[]);}catch(e){console.error(e);}};
 
-  if(isA){if(!aLog)return<ALogin onLogin={()=>setALog(true)}/>;return<Admin onLogout={()=>{setALog(false);setIsA(false);}}/>;}
+  if(isA){if(!aLog)return<ALogin onLogin={()=>setALog(true)}/>;return<Admin onLogout={closeAdmin}/>;}
 
   const storeOpen=st.store_open!=="false";
-  if(!ld&&!storeOpen&&!isA) return(<><StoreClosed/><div className="fixed bottom-4 left-4 z-50"><button onClick={()=>setIsA(true)} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></>);
+  if(!ld&&!storeOpen&&!isA) return(<><StoreClosed/><div className="fixed bottom-4 left-4 z-50"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></>);
 
   if(ok)return(<div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center px-5"><div className="text-center"><div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">✅</span></div><h2 className="text-xl font-bold text-stone-800 mb-2">Order Terkirim!</h2><p className="text-sm text-stone-400 mb-8 max-w-xs mx-auto leading-relaxed">Lanjutkan di WhatsApp untuk konfirmasi pembayaran.</p><Btn onClick={()=>{d({type:"CLR"});setCo(null);setOk(false);goH();}}>🏠 Kembali ke Beranda</Btn></div></div>);
 
   const pr=pid?products.find(p=>p.id===pid):null;
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedule={readSchedule(st.daily_schedule_json)}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
@@ -521,6 +569,6 @@ export default function App(){
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prev"&&co&&<Preview cart={cart} checkout={co} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
-    {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={()=>setIsA(true)} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
+    {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
   </>);
 }
