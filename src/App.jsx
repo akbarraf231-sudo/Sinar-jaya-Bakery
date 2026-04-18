@@ -672,12 +672,13 @@ const AReport = ({orders,settings:st}) => {
 
 const APembukuan = ({products,orders,settings:st,onRefresh:rf}) => {
   const [sub,setSub]=useState("report");
-  const subs=[{id:"report",icon:"📊",l:"Laporan"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"}];
+  const subs=[{id:"report",icon:"📊",l:"Laporan"},{id:"stats",icon:"📈",l:"Statistik"},{id:"purchase",icon:"📥",l:"Pembelian"},{id:"expense",icon:"💸",l:"Pengeluaran"}];
   return(<div>
     <div className="sticky top-[60px] z-20 -mx-4 px-4 py-2 bg-stone-50/95 backdrop-blur-sm border-b border-stone-100 mb-4">
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">{subs.map(s=>(<button key={s.id} onClick={()=>setSub(s.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sub===s.id?"bg-amber-800 text-white shadow-sm":"bg-white text-stone-600 border border-stone-200 hover:border-amber-200"}`}><span>{s.icon}</span>{s.l}</button>))}</div>
     </div>
     {sub==="report"&&<AReport orders={orders} settings={st}/>}
+    {sub==="stats"&&<AStats orders={orders} settings={st} onRefresh={rf}/>}
     {sub==="purchase"&&<APurchases products={products} settings={st} onRefresh={rf}/>}
     {sub==="expense"&&<AExpenses settings={st} onRefresh={rf}/>}
   </div>);
@@ -697,7 +698,7 @@ const Admin = ({onLogout}) => {
 
   useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
 
-  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"pembukuan",icon:"📒",label:"Pembukuan"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"stats",icon:"📊",label:"Statistik"},{id:"settings",icon:"⚙️",label:"Setting"}];
+  const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"pembukuan",icon:"📒",label:"Pembukuan"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
@@ -709,7 +710,6 @@ const Admin = ({onLogout}) => {
       {tab==="pembukuan"&&<APembukuan products={products} orders={allOrders} settings={settings} onRefresh={load}/>}
       {tab==="schedule"&&<ASchedule products={products} settings={settings} onRefresh={load}/>}
       {tab==="calendar"&&<ACal closedDates={cd} orders={orders} quota={parseInt(settings.daily_quota||"20")} onToggle={toggle}/>}
-      {tab==="stats"&&<AStats orders={allOrders} settings={settings} onRefresh={load}/>}
       {tab==="settings"&&<ASettings settings={settings} onRefresh={load}/>}
     </>}</div>
     <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-stone-100 flex z-30">{tabs.map(t=><button key={t.id} onClick={()=>{setTab(t.id);if(t.id==="orders")setNewCount(0);}} className={`flex-1 py-3 flex flex-col items-center gap-1 text-[11px] transition relative ${tab===t.id?"text-amber-800 font-bold":"text-stone-400"}`}><span className="text-lg">{t.icon}</span>{t.label}{t.id==="orders"&&newCount>0&&<span className="absolute top-1 right-1/4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center" style={{width:18,height:18}}>{newCount}</span>}</button>)}</nav>
