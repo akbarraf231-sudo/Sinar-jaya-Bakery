@@ -3,7 +3,7 @@ import { useState, useReducer, useRef, useCallback, useEffect } from "react";
 
 const SB_URL = "https://epydslvgxgucjemzfuxn.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVweWRzbHZneGd1Y2plbXpmdXhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjE4NjQsImV4cCI6MjA5MTc5Nzg2NH0.0xFvwqwixO1hTBWVIugGmxOObRAaV31CP0MOcBBbDVA";
-const WA = "6285745754951";
+const WA = "6285801299758";
 let tk = null;
 
 const sb = async (p, { method="GET", body, headers:x={} }={}) => {
