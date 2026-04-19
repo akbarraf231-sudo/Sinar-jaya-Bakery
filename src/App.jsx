@@ -21,6 +21,7 @@ const dbO = () => sb("/rest/v1/orders?status=neq.archived&order=id.desc", H());
 const dbAO = () => sb("/rest/v1/orders?order=id.desc", H());
 const dbCD = () => sb("/rest/v1/closed_dates?order=date.asc", H());
 const dbS = () => sb("/rest/v1/settings?order=id.asc", H());
+const dbOByPhone = (ph) => sb(`/rest/v1/orders?customer_phone=eq.${encodeURIComponent(ph)}&select=id,order_number,order_date,status,customer_phone,total&order=id.desc`, H());
 const dbIO = (o) => sb("/rest/v1/orders", { method:"POST", body:o, ...H() });
 const dbUO = (id,d) => sb(`/rest/v1/orders?id=eq.${id}`, { method:"PATCH", body:d, ...H() });
 const dbXO = (id) => sb(`/rest/v1/orders?id=eq.${id}`, { method:"PATCH", body:{status:"archived"}, ...H() });
@@ -195,7 +196,44 @@ const PriceDisplay = ({price,discount,soldOut}) => {
 
 /* ── CUSTOMER ── */
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedIds}) => {
+const StempelCard = ({settings:st}) => {
+  const target=Math.max(1,parseInt(st?.stempel_target||"10")||10);
+  const minTotal=Math.max(0,parseInt(st?.stempel_min_total||"0")||0);
+  const reward=st?.stempel_reward||"";
+  const [phone,setPhone]=useState(()=>{try{return localStorage.getItem("sjb_phone")||"";}catch{return "";}});
+  const [open,setOpen]=useState(false);const [loading,setLoading]=useState(false);const [data,setData]=useState(null);const [err,setErr]=useState("");
+  const ps=["paid","process","done","archived"];
+  const lookup=async(ph=phone)=>{const p=(ph||"").trim();if(!p){setErr("Masukkan nomor HP/WA dulu");return;}setErr("");setLoading(true);try{const arr=await dbOByPhone(p);const qual=(arr||[]).filter(o=>ps.includes(o.status)&&(minTotal===0||(o.total||0)>=minTotal));setData({orders:qual,phone:p});try{localStorage.setItem("sjb_phone",p);}catch{}}catch{setErr("Gagal mengambil data, coba lagi");}setLoading(false);};
+  useEffect(()=>{if(phone&&open&&!data)lookup(phone);},[open]);
+  const count=data?data.orders.length:0;
+  const rewardsEarned=Math.floor(count/target);
+  const curProgress=count%target;
+  const full=curProgress===0&&count>0;
+  return(<div className="px-5 pt-4">
+    <div className="bg-gradient-to-br from-amber-700 via-amber-800 to-stone-900 text-white rounded-2xl shadow-lg overflow-hidden">
+      <button onClick={()=>setOpen(v=>!v)} className="w-full px-4 py-3.5 flex items-center justify-between gap-3 active:bg-black/10 transition">
+        <div className="flex items-center gap-3 min-w-0"><span className="text-2xl">🎖️</span><div className="text-left min-w-0"><p className="font-bold text-sm">Kartu Stempel</p><p className="text-[11px] text-amber-100/80 truncate">{data?`${curProgress}/${target} stempel${rewardsEarned>0?` · ${rewardsEarned} reward siap`:""}`:"Kumpulkan stempel dapat reward"}</p></div></div>
+        <span className={`text-base transition-transform ${open?"rotate-180":""}`}>▾</span>
+      </button>
+      {open&&<div className="bg-white text-stone-800 p-4">
+        {reward&&<div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 mb-3"><p className="text-[10px] font-bold text-amber-900 mb-0.5">🎁 REWARD</p><p className="text-xs text-amber-800 font-semibold">{reward}</p><p className="text-[10px] text-amber-700 mt-0.5">Kumpulkan {target} stempel</p></div>}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-3 text-[11px] text-amber-900 leading-relaxed"><span className="font-bold">⚠️ Penting:</span> Pakai <span className="font-bold">nomor HP/WA yang sama</span> di SETIAP order. Kalau beda nomor, order tidak akan terhitung ke stempel yang sama.{minTotal>0&&<> Minimum belanja {fmt(minTotal)} per order.</>}</div>
+        <div className="flex gap-2 mb-3"><input type="tel" inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="0812-xxxx-xxxx" className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300"/><button onClick={()=>lookup()} disabled={loading||!phone.trim()} className="bg-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold disabled:opacity-50 hover:bg-amber-900 transition">{loading?"...":"Cek"}</button></div>
+        {err&&<p className="text-xs text-red-600 mb-2">⚠️ {err}</p>}
+        {data&&<>
+          <div className="text-center mb-3"><p className="text-[11px] text-stone-400 mb-1">Progress kamu</p><p className="text-2xl font-bold text-amber-800">{curProgress} / {target}</p><p className="text-[10px] text-stone-400 mt-0.5">Total {count} order · {rewardsEarned} reward sudah terkumpul</p></div>
+          <div className="grid grid-cols-5 gap-1.5 mb-3">{Array.from({length:target}).map((_,i)=>{const f=i<curProgress||(full&&rewardsEarned>0);return(<div key={i} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition ${f?"bg-gradient-to-br from-amber-200 to-orange-300 border-2 border-amber-500 shadow-sm":"bg-stone-100 border-2 border-dashed border-stone-300 text-stone-300"}`}>{f?"⭐":"○"}</div>);})}</div>
+          {full&&<div className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4 text-center"><p className="text-2xl mb-1">🎉</p><p className="text-sm font-bold text-emerald-800">Stempel Penuh!</p><p className="text-[11px] text-emerald-700 mt-1">Tunjukkan halaman ini ke admin saat order berikutnya untuk klaim reward.</p></div>}
+          {!full&&curProgress>0&&<p className="text-xs text-center text-stone-500">Butuh {target-curProgress} order lagi untuk klaim reward 🎁</p>}
+          {count===0&&<p className="text-xs text-center text-stone-400">Belum ada order dengan nomor ini. Mulai order pertamamu!</p>}
+        </>}
+        {!data&&!loading&&<p className="text-xs text-center text-stone-400">Masukkan nomor HP/WA untuk cek progress</p>}
+      </div>}
+    </div>
+  </div>);
+};
+
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedIds,settings}) => {
   const todayIds=(schedIds&&schedIds[todayKey()])||[];
   const isScheduled=todayIds.length>0;
   const visible=products.filter(p=>!isScheduled||p.category==="special"||p.category==="savory"||todayIds.includes(p.id));
@@ -218,6 +256,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
         <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-2 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
     </div>
+    {settings?.stempel_enabled==="true"&&<StempelCard settings={settings}/>}
     {!loading&&todayProds.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Tersedia Hari Ini — {todayLabel()}</h2></div>
       <div className="grid grid-cols-2 gap-3">{todayProds.map(p=>(<button key={p.id} onClick={()=>!p.is_sold_out&&onProd(p.id)} className={`rounded-2xl overflow-hidden text-left group ${p.is_sold_out?"opacity-50 cursor-not-allowed":"hover:scale-[1.02]"} transition-all duration-300`}><div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 h-full"><div className="overflow-hidden relative"><div className={`${p.is_sold_out?"":"group-hover:scale-110"} transition-transform duration-700`}><Img name={p.name} color={p.color} img={firstImg(p.image_url)} size="md"/></div>{p.is_sold_out&&<div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center"><span className="bg-red-500/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg">Stok Habis</span></div>}{p.label&&!p.is_sold_out&&<div className="absolute top-2 left-2"><LB label={p.label}/></div>}</div><div className="p-3.5"><p className="font-bold text-sm text-stone-800 mb-1">{p.name}</p>{p.description&&<p className="text-[10px] text-stone-400 mb-2 line-clamp-2 leading-relaxed">{p.description}</p>}<div className="flex items-center justify-between"><PriceDisplay price={p.price} discount={p.discount} soldOut={p.is_sold_out}/>{!p.is_sold_out&&<span className="text-amber-600 text-lg group-hover:translate-x-1 transition-transform">→</span>}</div></div></div></button>))}</div>
     </div>}
@@ -489,7 +528,7 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const rmVoucher=(i)=>{if(!confirm("Hapus voucher ini?"))return;persistVouchers(vouchers.filter((_,j)=>j!==i));};
   const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
 
-  const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
+  const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"stempel",icon:"🎖️",label:"Stempel"},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
   const iptCls="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
   const Field=({label,hint,children})=><div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>;
 
@@ -544,6 +583,15 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
         <Field label="Berlaku sampai"><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className={iptCls}/></Field>
         <Field label="Deskripsi"><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className={iptCls}/></Field>
       </div>);})}
+    </div>}
+
+    {sec==="stempel"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
+      <div className="flex items-center gap-2 mb-4"><span className="text-lg">🎖️</span><div><h3 className="font-bold text-stone-800 text-sm">Program Stempel Loyalitas</h3><p className="text-[11px] text-stone-400">Setiap order customer dapat 1 stempel. Kumpulkan untuk dapat reward.</p></div></div>
+      <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 mb-4 ${v.stempel_enabled==="true"?"bg-emerald-50 border-emerald-200":"bg-stone-50 border-stone-200"}`}><div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{v.stempel_enabled==="true"?"✅ Program Aktif":"⚪ Program Nonaktif"}</p><p className="text-xs text-stone-500 mt-0.5">{v.stempel_enabled==="true"?"Customer bisa lihat & kumpulkan stempel":"Fitur disembunyikan dari customer"}</p></div><button onClick={()=>save("stempel_enabled",v.stempel_enabled==="true"?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${v.stempel_enabled==="true"?"bg-stone-500 text-white hover:bg-stone-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{v.stempel_enabled==="true"?"Nonaktifkan":"Aktifkan"}</button></div>
+      <Field label="Target Stempel" hint="Jumlah stempel untuk klaim reward (contoh: 10)"><input type="number" min="1" value={v.stempel_target||"10"} onChange={e=>setV(x=>({...x,stempel_target:e.target.value}))} onBlur={()=>save("stempel_target",v.stempel_target||"10")} className={iptCls}/></Field>
+      <Field label="Minimum Belanja per Stempel" hint="Order dengan total ≥ nilai ini dapat 1 stempel. 0 = semua order dapat stempel"><input type="number" min="0" value={v.stempel_min_total||"0"} onChange={e=>setV(x=>({...x,stempel_min_total:e.target.value}))} onBlur={()=>save("stempel_min_total",v.stempel_min_total||"0")} className={iptCls}/></Field>
+      <Field label="Deskripsi Reward" hint="Yang didapat customer setelah stempel penuh"><textarea value={v.stempel_reward||""} onChange={e=>setV(x=>({...x,stempel_reward:e.target.value}))} onBlur={()=>save("stempel_reward",v.stempel_reward||"")} rows={2} placeholder="Contoh: Diskon Rp 50.000 / 1 loyang brownies gratis / Voucher 20%" className={iptCls}/></Field>
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[11px] text-amber-800 leading-relaxed"><p className="font-bold mb-1">📝 Cara kerjanya:</p><p>1. Customer isi nomor HP/WA saat order</p><p>2. Setelah order dibayar/selesai, otomatis dapat stempel</p><p>3. Customer cek progress di halaman utama dengan HP yang sama</p><p>4. Stempel penuh = klaim reward ke admin saat order berikutnya</p><p className="mt-2 text-amber-900 font-semibold">⚠️ Customer harus pakai HP yang sama tiap order, kalau beda = terhitung customer lain</p></div>
     </div>}
 
     {sec==="faq"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -831,7 +879,7 @@ export default function App(){
   const refreshStock=async()=>{try{const s=await dbS();const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}};
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap} settings={st}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
