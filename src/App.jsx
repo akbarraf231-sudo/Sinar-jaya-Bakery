@@ -474,7 +474,7 @@ const HampersBuilder = ({settings:st,onBack,onHome}) => {
     if(!fm.name.trim())return setErr("Nama wajib diisi");
     if(!fm.phone.trim()||fm.phone.replace(/\D/g,"").length<9)return setErr("Nomor HP tidak valid");
     if(boxes<minBox)return setErr(`Minimal ${minBox} box untuk bulk order`);
-    if(!fm.date)return setErr("Tanggal pengiriman wajib dipilih");
+    if(!fm.date)return setErr("Tanggal pengambilan wajib dipilih");
     if(!isCustom&&!selPkg)return setErr("Pilih paket dulu");
     if(isCustom&&!fm.custom_details.trim())return setErr("Detail permintaan custom wajib diisi");
     setSending(true);
@@ -502,7 +502,7 @@ const HampersBuilder = ({settings:st,onBack,onHome}) => {
     <div className="bg-white rounded-2xl p-5 mb-4 border border-stone-100 space-y-2 text-sm">
       <div className="flex justify-between"><span className="text-stone-500">Paket</span><span className="font-semibold">{ok.pkgName}</span></div>
       <div className="flex justify-between"><span className="text-stone-500">Jumlah</span><span className="font-semibold">{ok.boxes} box</span></div>
-      <div className="flex justify-between"><span className="text-stone-500">Tanggal Kirim</span><span className="font-semibold">{ok.date}</span></div>
+      <div className="flex justify-between"><span className="text-stone-500">Tanggal Pengambilan</span><span className="font-semibold">{ok.date}</span></div>
       {!ok.isCustom&&<>
         <div className="flex justify-between pt-2 border-t border-stone-100"><span className="text-stone-500">Estimasi Total</span><span className="font-semibold">{fmt(ok.estTotal)}</span></div>
         <div className="flex justify-between"><span className="text-stone-500">Estimasi DP ({dpPct}%)</span><span className="font-bold text-amber-800">{fmt(ok.estDP)}</span></div>
@@ -539,7 +539,7 @@ const HampersBuilder = ({settings:st,onBack,onHome}) => {
       <Inp label="Nama Pemesan / Perusahaan" required value={fm.name} onChange={e=>setFm(x=>({...x,name:e.target.value}))} placeholder="PT Sinar Abadi / Budi"/>
       <Inp label="Nomor HP/WA" required value={fm.phone} onChange={e=>setFm(x=>({...x,phone:e.target.value}))} placeholder="08xxxxxxxxxx" type="tel"/>
       <Inp label={`Jumlah Box (min. ${minBox})`} required value={fm.boxes} onChange={e=>setFm(x=>({...x,boxes:e.target.value}))} placeholder={String(minBox)} type="number" min={minBox}/>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Pengiriman<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={fm.date} min={minDate} onChange={e=>setFm(x=>({...x,date:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1">Minimal H-3 untuk persiapan produksi</p></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Pengambilan<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={fm.date} min={minDate} onChange={e=>setFm(x=>({...x,date:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1">Minimal H-3 untuk persiapan produksi</p></div>
 
       {mode==="paket"&&selPkg&&(selPkg.allowed_flavors||[]).length>0&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Rasa Pilihan <span className="text-stone-400 font-normal text-xs">(opsional, boleh pilih beberapa)</span></label><div className="flex flex-wrap gap-2">{selPkg.allowed_flavors.map(f=>{const sel=fm.flavors.includes(f);return(<button key={f} onClick={()=>toggleFlavor(f)} className={`border-2 rounded-full px-3 py-1.5 text-xs font-medium transition ${sel?"border-amber-500 bg-amber-50 text-amber-900":"border-stone-200 text-stone-600 hover:border-stone-300"}`}>{sel&&"✓ "}{f}</button>);})}</div></div>}
 
@@ -605,7 +605,7 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
       {o.reference_image&&<div className="mt-2"><p className="text-xs text-stone-400 mb-1">📷 Referensi:</p><img src={o.reference_image} alt="Referensi" className="w-32 h-32 object-cover rounded-lg border border-stone-200"/></div>}
-      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 {isHampers?"Kirim":"Ambil"}: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}{isHampers&&o.status==="waiting"&&o.total===0?" (belum di-set)":""}</span></div>
+      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}{isHampers&&o.status==="waiting"&&o.total===0?" (belum di-set)":""}</span></div>
       <div className="flex gap-2 mt-4 flex-wrap">
         {isHampers&&["waiting","paid","process"].includes(o.status)&&<Btn onClick={setPrice} variant="secondary" className="text-xs" disabled={busy===o.order_number}>✏️ Set Harga Final</Btn>}
         {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":(isQris?"💰 Konfirmasi Lunas (QRIS)":"💰 Tandai Bayar")):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
