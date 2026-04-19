@@ -107,6 +107,13 @@ const Btn = ({children,onClick,variant="primary",full,disabled,className=""}) =>
   return <button onClick={onClick} disabled={disabled} className={`${b} ${sz} ${vr[variant]} ${disabled?"opacity-50 cursor-not-allowed":""} ${className}`}>{children}</button>;
 };
 const Inp = ({label,required,...p}) => (<div className="mb-4">{label&&<label className="block text-sm font-medium text-stone-600 mb-1.5">{label}{required&&<span className="text-red-400 ml-0.5">*</span>}</label>}<input {...p} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent focus:bg-white transition"/></div>);
+const IPT_CLS="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
+const Field = ({label,hint,children}) => (<div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>);
+const DEFAULT_HAMPERS=[
+  {id:"paket-a",name:"Paket A (Basic)",tier:"basic",price_per_box:75000,contents:[{label:"Donat aneka rasa",qty:6},{label:"Roti manis",qty:4}],allowed_flavors:["Coklat","Keju","Strawberry","Vanila"],description:"Cocok untuk snack meeting / arisan"},
+  {id:"paket-b",name:"Paket B (Standard)",tier:"standard",price_per_box:125000,contents:[{label:"Donat aneka rasa",qty:6},{label:"Roti manis",qty:4},{label:"Potongan cake",qty:3},{label:"Snack asin",qty:1}],allowed_flavors:["Coklat","Keju","Pandan","Tiramisu","Strawberry"],description:"Paling laku untuk event kantor"},
+  {id:"paket-c",name:"Paket C (Premium)",tier:"premium",price_per_box:200000,contents:[{label:"Donat premium",qty:8},{label:"Roti manis premium",qty:6},{label:"Potongan cake premium",qty:6},{label:"Snack asin",qty:2},{label:"Kartu ucapan",qty:1}],allowed_flavors:["Coklat Belgian","Tiramisu","Red Velvet","Matcha","Cheesecake"],description:"Untuk klien VIP & hadiah perusahaan"},
+];
 const ImgUp = ({value,onChange,label="Foto"}) => { const [drag,setDrag]=useState(false);const ref=useRef();const proc=useCallback(f=>{if(!f||!f.type.startsWith("image/"))return;const r=new FileReader();r.onload=e=>onChange(e.target.result);r.readAsDataURL(f);},[onChange]); return(<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">{label}</label>{value?(<div className="relative rounded-2xl overflow-hidden"><img src={value} alt="" className="w-full h-44 object-cover"/><button onClick={()=>onChange("")} className="absolute top-3 right-3 bg-black/50 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-black/70">✕</button></div>):(<div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])proc(e.dataTransfer.files[0])}} onPaste={e=>{const it=e.clipboardData?.items;if(it)for(let i=0;i<it.length;i++)if(it[i].type.startsWith("image/")){proc(it[i].getAsFile());break;}}} tabIndex={0} onClick={()=>ref.current?.click()} className={`w-full h-36 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${drag?"border-amber-400 bg-amber-50":"border-stone-200 hover:border-amber-300"}`}><span className="text-3xl mb-2 opacity-40">📷</span><p className="text-xs text-stone-400 text-center px-4">Klik, drag & drop, atau paste</p><input ref={ref} type="file" accept="image/*" className="hidden" onChange={e=>{if(e.target.files[0])proc(e.target.files[0])}}/></div>)}</div>);};
 
 const ImgsUp = ({value,onChange,label="Foto Produk",max=5}) => {
@@ -233,7 +240,7 @@ const StempelCard = ({settings:st}) => {
   </div>);
 };
 
-const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,schedIds,settings}) => {
+const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,onFAQ,onHampers,schedIds,settings}) => {
   const todayIds=(schedIds&&schedIds[todayKey()])||[];
   const isScheduled=todayIds.length>0;
   const visible=products.filter(p=>!isScheduled||p.category==="special"||p.category==="savory"||todayIds.includes(p.id));
@@ -255,6 +262,7 @@ const Home = ({products,onCat,onProd,cart,onCart,heroBg,loading,onTrack,onInfo,o
         <button onClick={onInfo} className="bg-white text-stone-700 rounded-2xl py-3 px-2 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">📍 Info Toko</button>
         <button onClick={onFAQ} className="bg-white text-stone-700 rounded-2xl py-3 px-2 text-center font-medium text-xs shadow-sm border border-stone-100 hover:border-amber-200 hover:shadow-md transition-all">❓ FAQ</button>
       </div>
+      {settings?.hampers_enabled!=="false"&&<button onClick={onHampers} className="w-full mt-3 bg-gradient-to-br from-purple-700 to-purple-900 text-white rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-purple-900/20 hover:scale-[1.01] transition text-left"><span className="text-2xl">🎁</span><div className="flex-1 min-w-0"><p className="font-bold text-sm">Hampers Bulk Order</p><p className="text-[11px] text-purple-100/80 mt-0.5 leading-snug">Paket A/B/C · min. {settings?.hampers_min_box||"20"} box · untuk event & kantor</p></div><span className="text-lg">→</span></button>}
     </div>
     {settings?.stempel_enabled==="true"&&<StempelCard settings={settings}/>}
     {!loading&&todayProds.length>0&&<div className="px-5 pt-6"><div className="flex items-center gap-2 mb-4"><div className="w-8 h-[2px] bg-amber-300 rounded-full"/><h2 className="font-bold text-stone-800 text-lg">🍞 Tersedia Hari Ini — {todayLabel()}</h2></div>
@@ -378,16 +386,24 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
     <Btn onClick={go} full disabled={sub}>{sub?"Memproses...":"Lihat Preview →"}</Btn></div></Shell>);
 };
 
-const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
+const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
+  const hasQris=!!(st?.qris_image);
+  const hasBank=!!(st?.store_payment_info);
+  const [payMethod,setPayMethod]=useState(hasQris?"qris":"bank");
   const sub=co.subtotal||cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
   const disc=co.discount||0,tot=co.total!=null?co.total:Math.max(0,sub-disc),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
   const timeStr=co.time?` pukul ${co.time}`:"";
   const voucherLine=co.voucher?`%0AVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
-  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
+  const payLine=payMethod==="qris"?`%0A%0AMetode Bayar: QRIS (Menunggu konfirmasi admin)`:`%0A%0AMetode Bayar: Transfer Bank`;
+  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}${payLine}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
-  const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:""].filter(Boolean).join(" ");
+  const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":"[Transfer Bank]";
+  const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:"",payTag].filter(Boolean).join(" ");
   const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
+
+  const copyAmount=()=>{try{navigator.clipboard?.writeText(String(tot));}catch{}};
+
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
       <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
@@ -397,8 +413,157 @@ const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
         <div className="flex justify-between pt-2 border-t border-stone-100"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
       </div>
       <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
-    <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":"📲 Kirim ke WhatsApp"}</Btn>
+
+    {(hasQris||hasBank)&&<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
+      <p className="text-sm font-bold text-stone-800 mb-3">💳 Metode Pembayaran</p>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {hasQris&&<button onClick={()=>setPayMethod("qris")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="qris"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">📱</p><p className="text-xs font-bold text-stone-800">QRIS</p><p className="text-[10px] text-stone-400">Scan & bayar</p></button>}
+        {hasBank&&<button onClick={()=>setPayMethod("bank")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="bank"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">🏦</p><p className="text-xs font-bold text-stone-800">Transfer Bank</p><p className="text-[10px] text-stone-400">Via rekening</p></button>}
+      </div>
+
+      {payMethod==="qris"&&hasQris&&<div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+        {st.qris_merchant_name&&<p className="text-center text-xs font-bold text-amber-900 mb-2">{st.qris_merchant_name}</p>}
+        <div className="bg-white rounded-2xl p-3 mb-3"><img src={st.qris_image} alt="QRIS" className="w-full max-w-[280px] mx-auto rounded-xl"/></div>
+        <div className="bg-white rounded-xl p-3 mb-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+        <div className="text-[11px] text-amber-900 leading-relaxed space-y-1">
+          <p className="font-bold">Cara bayar:</p>
+          <p>1. Buka aplikasi mobile banking / E-wallet</p>
+          <p>2. Pilih menu <span className="font-semibold">Scan QRIS</span></p>
+          <p>3. Scan gambar di atas</p>
+          <p>4. Masukkan nominal <span className="font-semibold">{fmt(tot)}</span></p>
+          <p>5. Konfirmasi & selesaikan pembayaran</p>
+          <p>6. Klik tombol <span className="font-semibold">"Saya Sudah Bayar"</span> di bawah</p>
+        </div>
+        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-[11px] text-yellow-800"><span className="font-bold">ℹ️ Penting:</span> Setelah klik "Sudah Bayar", order akan berstatus <span className="font-bold">Menunggu Konfirmasi</span>. Admin akan cek pembayaran & ubah ke status <span className="font-bold">Lunas</span>.</div>
+      </div>}
+
+      {payMethod==="bank"&&hasBank&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
+        <p className="text-[11px] text-stone-400 mb-1">Info Rekening / Pembayaran</p>
+        <p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p>
+        <div className="mt-3 bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+      </div>}
+    </div>}
+
+    <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":payMethod==="qris"?"✅ Saya Sudah Bayar (QRIS) → Kirim ke WA":"📲 Kirim ke WhatsApp"}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
+};
+
+const HampersBuilder = ({settings:st,onBack,onHome}) => {
+  const enabled=st.hampers_enabled!=="false";
+  const minBox=Math.max(1,parseInt(st.hampers_min_box||"20")||20);
+  const dpPct=Math.max(1,Math.min(100,parseInt(st.hampers_dp_percent||"50")||50));
+  const packages=jp(st.hampers_packages_json,DEFAULT_HAMPERS).filter(p=>p&&p.id);
+  const [mode,setMode]=useState("paket");
+  const [selPkg,setSelPkg]=useState(null);
+  const [fm,setFm]=useState({name:"",phone:"",boxes:"",date:"",flavors:[],message:"",budget:"",custom_details:""});
+  const [sending,setSending]=useState(false);
+  const [err,setErr]=useState("");
+  const [ok,setOk]=useState(null);
+
+  if(!enabled) return(<Shell title="Hampers" onBack={onBack} onHome={onHome}><div className="px-5 py-14 text-center"><p className="text-5xl mb-4">🎁</p><p className="font-semibold text-stone-700 mb-2">Hampers belum tersedia</p><p className="text-sm text-stone-400">Hubungi admin untuk info lebih lanjut</p></div></Shell>);
+
+  const toggleFlavor=(f)=>setFm(x=>({...x,flavors:x.flavors.includes(f)?x.flavors.filter(y=>y!==f):[...x.flavors,f]}));
+  const boxes=Math.max(0,parseInt(fm.boxes)||0);
+  const estTotal=selPkg&&mode==="paket"?boxes*(selPkg.price_per_box||0):0;
+  const estDP=Math.round(estTotal*dpPct/100);
+  const minDate=(()=>{const d=new Date();d.setDate(d.getDate()+3);return d.toISOString().split("T")[0];})();
+
+  const submit=async()=>{
+    setErr("");
+    const isCustom=mode==="custom";
+    if(!fm.name.trim())return setErr("Nama wajib diisi");
+    if(!fm.phone.trim()||fm.phone.replace(/\D/g,"").length<9)return setErr("Nomor HP tidak valid");
+    if(boxes<minBox)return setErr(`Minimal ${minBox} box untuk bulk order`);
+    if(!fm.date)return setErr("Tanggal pengiriman wajib dipilih");
+    if(!isCustom&&!selPkg)return setErr("Pilih paket dulu");
+    if(isCustom&&!fm.custom_details.trim())return setErr("Detail permintaan custom wajib diisi");
+    setSending(true);
+    try{
+      const on=await dbGN();
+      const pkgName=isCustom?"Custom Hampers":selPkg.name;
+      const unitPrice=isCustom?0:(selPkg.price_per_box||0);
+      const items=[{name:pkgName,qty:boxes,unitPrice,size:"",flavor:fm.flavors.join(", ")}];
+      const total=isCustom?0:estTotal;
+      const tag=isCustom?"[HAMPERS — Custom Request]":"[HAMPERS — Request Order]";
+      const parts=[tag,pkgName];
+      if(!isCustom&&selPkg){const c=(selPkg.contents||[]).map(x=>`${x.label}×${x.qty}`).join(", ");if(c)parts.push(`Isi: ${c}`);}
+      if(fm.flavors.length)parts.push(`Rasa: ${fm.flavors.join(", ")}`);
+      if(isCustom){if(fm.custom_details)parts.push(`Detail: ${fm.custom_details}`);if(fm.budget)parts.push(`Budget/box: ${fmt(parseInt(fm.budget)||0)}`);}
+      if(fm.message)parts.push(`Ucapan: ${fm.message}`);
+      const note=parts.join(" | ");
+      await dbIO({order_number:on,customer_name:fm.name.trim(),customer_phone:fm.phone.trim(),items,total,note,pickup_date:fm.date,status:"waiting",reference_image:""});
+      setOk({orderNum:on,phone:fm.phone.trim(),pkgName,boxes,estTotal,estDP,isCustom,date:fm.date});
+    }catch{setErr("Gagal mengirim, coba lagi.");}
+    setSending(false);
+  };
+
+  if(ok){const waMsg=`Halo admin, saya baru submit Hampers Request:%0A%0ANo Order: ${ok.orderNum}%0ANama: ${fm.name}%0APaket: ${ok.pkgName}%0AJumlah: ${ok.boxes} box%0ATanggal: ${ok.date}${ok.isCustom?"":`%0AEstimasi Total: ${fmt(ok.estTotal)}%0AEstimasi DP (${dpPct}%25): ${fmt(ok.estDP)}`}%0A%0AMohon konfirmasi ya, terima kasih!`;return(<Shell title="Request Terkirim" onBack={onBack} onHome={onHome}><div className="px-5 py-8">
+    <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center mb-5"><p className="text-5xl mb-3">✅</p><p className="font-bold text-stone-800 text-lg mb-2">Request Terkirim!</p><p className="text-[11px] text-stone-400">No. Order</p><p className="font-bold text-amber-800">{ok.orderNum}</p></div>
+    <div className="bg-white rounded-2xl p-5 mb-4 border border-stone-100 space-y-2 text-sm">
+      <div className="flex justify-between"><span className="text-stone-500">Paket</span><span className="font-semibold">{ok.pkgName}</span></div>
+      <div className="flex justify-between"><span className="text-stone-500">Jumlah</span><span className="font-semibold">{ok.boxes} box</span></div>
+      <div className="flex justify-between"><span className="text-stone-500">Tanggal Kirim</span><span className="font-semibold">{ok.date}</span></div>
+      {!ok.isCustom&&<>
+        <div className="flex justify-between pt-2 border-t border-stone-100"><span className="text-stone-500">Estimasi Total</span><span className="font-semibold">{fmt(ok.estTotal)}</span></div>
+        <div className="flex justify-between"><span className="text-stone-500">Estimasi DP ({dpPct}%)</span><span className="font-bold text-amber-800">{fmt(ok.estDP)}</span></div>
+      </>}
+    </div>
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 text-xs text-amber-900 leading-relaxed">
+      <p className="font-bold mb-1">📝 Langkah selanjutnya:</p>
+      <p>1. Admin cek <span className="font-semibold">kapasitas produksi & stok</span></p>
+      <p>2. Admin konfirmasi <span className="font-semibold">harga final</span> via WhatsApp</p>
+      <p>3. Setelah setuju, bayar <span className="font-semibold">DP {dpPct}%</span> untuk kunci slot</p>
+      <p>4. Pelunasan sebelum pengiriman</p>
+    </div>
+    <a href={`https://wa.me/${WA}?text=${waMsg}`} target="_blank" rel="noreferrer" className="block w-full bg-emerald-500 text-white text-center py-4 rounded-2xl font-bold hover:bg-emerald-600 mb-3">💬 Chat Admin di WhatsApp</a>
+    <Btn onClick={onHome} full variant="ghost">🏠 Kembali ke Beranda</Btn>
+  </div></Shell>);}
+
+  return(<Shell title="Hampers Bulk Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
+    <div className="bg-gradient-to-br from-purple-700 to-purple-900 text-white rounded-3xl p-5 mb-5 shadow-lg"><p className="text-purple-200 text-[11px] tracking-wider uppercase mb-1">🎁 Hampers Builder</p><p className="text-lg font-bold mb-2">Bulk Order min. {minBox} box</p><p className="text-[11px] text-purple-100/80 leading-relaxed">Untuk meeting, event, tamu VIP, atau hadiah kantor. Pesan dulu — admin konfirmasi harga & jadwal produksi sebelum DP.</p></div>
+
+    <div className="flex gap-2 mb-5">
+      <button onClick={()=>setMode("paket")} className={`flex-1 py-3 rounded-xl text-sm font-semibold transition ${mode==="paket"?"bg-amber-800 text-white shadow":"bg-white border border-stone-200 text-stone-600"}`}>📦 Paket Siap</button>
+      <button onClick={()=>setMode("custom")} className={`flex-1 py-3 rounded-xl text-sm font-semibold transition ${mode==="custom"?"bg-amber-800 text-white shadow":"bg-white border border-stone-200 text-stone-600"}`}>✨ Custom Request</button>
+    </div>
+
+    {mode==="paket"&&<>
+      <p className="text-xs font-bold text-stone-700 mb-3">Pilih Paket ({packages.length} tersedia)</p>
+      <div className="space-y-3 mb-5">{packages.length===0?<p className="text-sm text-stone-400 text-center py-8">Belum ada paket. Gunakan mode Custom Request.</p>:packages.map(p=>{const sel=selPkg?.id===p.id;return(<button key={p.id} onClick={()=>setSelPkg(p)} className={`w-full text-left rounded-2xl border-2 p-4 transition ${sel?"border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm":"border-stone-200 bg-white hover:border-amber-300"}`}>
+        <div className="flex items-start justify-between mb-2 gap-2"><div className="min-w-0 flex-1"><p className="font-bold text-stone-800 text-sm">{p.name}</p>{p.description&&<p className="text-[11px] text-stone-400 mt-0.5">{p.description}</p>}</div><p className="text-amber-800 font-bold text-sm whitespace-nowrap">{fmt(p.price_per_box||0)}<span className="text-[10px] text-stone-400 font-normal">/box</span></p></div>
+        <div className="text-[11px] text-stone-600 space-y-0.5 mt-2">{(p.contents||[]).map((c,i)=>(<p key={i}>• {c.label} <span className="text-stone-400">×{c.qty}</span></p>))}</div>
+      </button>);})}</div>
+    </>}
+
+    <div className="bg-white rounded-2xl p-5 border border-stone-100 mb-4">
+      <Inp label="Nama Pemesan / Perusahaan" required value={fm.name} onChange={e=>setFm(x=>({...x,name:e.target.value}))} placeholder="PT Sinar Abadi / Budi"/>
+      <Inp label="Nomor HP/WA" required value={fm.phone} onChange={e=>setFm(x=>({...x,phone:e.target.value}))} placeholder="08xxxxxxxxxx" type="tel"/>
+      <Inp label={`Jumlah Box (min. ${minBox})`} required value={fm.boxes} onChange={e=>setFm(x=>({...x,boxes:e.target.value}))} placeholder={String(minBox)} type="number" min={minBox}/>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Pengiriman<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={fm.date} min={minDate} onChange={e=>setFm(x=>({...x,date:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1">Minimal H-3 untuk persiapan produksi</p></div>
+
+      {mode==="paket"&&selPkg&&(selPkg.allowed_flavors||[]).length>0&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Rasa Pilihan <span className="text-stone-400 font-normal text-xs">(opsional, boleh pilih beberapa)</span></label><div className="flex flex-wrap gap-2">{selPkg.allowed_flavors.map(f=>{const sel=fm.flavors.includes(f);return(<button key={f} onClick={()=>toggleFlavor(f)} className={`border-2 rounded-full px-3 py-1.5 text-xs font-medium transition ${sel?"border-amber-500 bg-amber-50 text-amber-900":"border-stone-200 text-stone-600 hover:border-stone-300"}`}>{sel&&"✓ "}{f}</button>);})}</div></div>}
+
+      {mode==="custom"&&<>
+        <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Detail Permintaan<span className="text-red-400 ml-0.5">*</span></label><textarea value={fm.custom_details} onChange={e=>setFm(x=>({...x,custom_details:e.target.value}))} rows={4} placeholder="Jelaskan isi hampers yang kamu inginkan, tema, jumlah per item, dll..." className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/></div>
+        <Inp label="Budget per Box (opsional)" value={fm.budget} onChange={e=>setFm(x=>({...x,budget:e.target.value}))} placeholder="Contoh: 150000" type="number"/>
+      </>}
+
+      <div className="mb-1"><label className="block text-sm font-medium text-stone-600 mb-1.5">Ucapan / Catatan <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><textarea value={fm.message} onChange={e=>setFm(x=>({...x,message:e.target.value}))} rows={2} placeholder="Selamat ulang tahun / Terima kasih atas kerjasamanya" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/></div>
+    </div>
+
+    {mode==="paket"&&selPkg&&boxes>=minBox&&<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4 space-y-1.5 text-sm">
+      <div className="flex justify-between text-stone-600"><span>{selPkg.name} × {boxes}</span><span>{fmt(estTotal)}</span></div>
+      <div className="flex justify-between pt-1.5 border-t border-stone-100"><span className="font-semibold text-stone-600">Estimasi Total</span><span className="font-bold text-amber-800">{fmt(estTotal)}</span></div>
+      <div className="flex justify-between text-[11px] text-stone-400"><span>Estimasi DP ({dpPct}%)</span><span>{fmt(estDP)}</span></div>
+      <p className="text-[10px] text-stone-400 mt-1 leading-relaxed">ℹ️ Harga final dikonfirmasi admin setelah cek kapasitas & stok.</p>
+    </div>}
+
+    {err&&<div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4 border border-red-100">⚠️ {err}</div>}
+
+    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 text-[11px] text-amber-900 leading-relaxed"><p className="font-bold mb-1">🔔 Penting:</p><p>Pesanan ini tidak langsung dibayar. Admin akan konfirmasi harga final & jadwal via WhatsApp. DP {dpPct}% dibayar setelah kamu setuju.</p></div>
+
+    <Btn onClick={submit} full disabled={sending}>{sending?"Mengirim...":mode==="custom"?"✨ Kirim Custom Request":"📤 Kirim Request Order"}</Btn>
+  </div></Shell>);
 };
 
 /* ── ADMIN ── */
@@ -434,15 +599,19 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
 
     <Inp placeholder="Cari nama / no HP / no order..." value={q} onChange={e=>setQ(e.target.value)}/>
     <div className="flex gap-2 mb-5 overflow-x-auto pb-1">{["all","waiting","paid","process","done"].map(s=><button key={s} onClick={()=>setFs(s)} className={`text-xs px-4 py-2 rounded-full whitespace-nowrap border-2 transition-all font-medium ${s===fs?"bg-amber-800 text-white border-amber-800":"border-stone-200 text-stone-500 hover:border-stone-300"}`}>{s==="all"?"Semua":sL[s]}{s==="waiting"&&newCount>0?` (${newCount})`:""}</button>)}</div>
-    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>(<div key={o.id} className="bg-white rounded-2xl p-5 mb-3 shadow-sm border border-stone-100">
-      <div className="flex items-center justify-between mb-3"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div>
+    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>{const isQris=(o.note||"").includes("[QRIS");const isHampers=(o.note||"").includes("[HAMPERS");const isCustomH=(o.note||"").includes("Custom Request");const setPrice=async()=>{const input=prompt(`Set harga final untuk ${o.order_number}\n${o.customer_name} · ${(o.items||[])[0]?.qty||0} box\n\nMasukkan total final (Rp):`,String(o.total||0));if(input===null)return;const val=parseInt(String(input).replace(/\D/g,""))||0;if(val<=0)return alert("Harga tidak valid");setBusy(o.order_number);try{await dbUO(o.id,{total:val});await rf();}catch{alert("Gagal update harga");}setBusy("");};return(<div key={o.id} className={`bg-white rounded-2xl p-5 mb-3 shadow-sm border ${isHampers?"border-purple-200":"border-stone-100"}`}>
+      <div className="flex items-center justify-between mb-3 gap-2"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><div className="flex items-center gap-1.5 flex-wrap">{isHampers&&<span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${isCustomH?"bg-pink-100 text-pink-800 border-pink-300":"bg-purple-100 text-purple-800 border-purple-300"}`}>🎁 {isCustomH?"CUSTOM":"HAMPERS"}</span>}{isQris&&o.status==="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">📱 QRIS</span>}{isQris&&o.status!=="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-stone-100 text-stone-500">📱 QRIS</span>}<Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div></div>
       <p className="text-sm text-stone-600">👤 {o.customer_name} · 📱 {o.customer_phone}</p>
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
       {o.reference_image&&<div className="mt-2"><p className="text-xs text-stone-400 mb-1">📷 Referensi:</p><img src={o.reference_image} alt="Referensi" className="w-32 h-32 object-cover rounded-lg border border-stone-200"/></div>}
-      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}</span></div>
-      <div className="flex gap-2 mt-4">{sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?"💰 Tandai Bayar":o.status==="paid"?"⚙️ Proses":"✅ Selesai"}</Btn>}{o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}</div>
-    </div>))}
+      <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 {isHampers?"Kirim":"Ambil"}: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}{isHampers&&o.status==="waiting"&&o.total===0?" (belum di-set)":""}</span></div>
+      <div className="flex gap-2 mt-4 flex-wrap">
+        {isHampers&&["waiting","paid","process"].includes(o.status)&&<Btn onClick={setPrice} variant="secondary" className="text-xs" disabled={busy===o.order_number}>✏️ Set Harga Final</Btn>}
+        {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":(isQris?"💰 Konfirmasi Lunas (QRIS)":"💰 Tandai Bayar")):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
+        {o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}
+      </div>
+    </div>);})}
   </div>);
 };
 
@@ -513,24 +682,26 @@ const AStats = ({orders}) => {
 const ASettings = ({settings:st,onRefresh:rf}) => {
   const [v,setV]=useState(st);const [sv,setSv]=useState(false);const [saveErr,setSaveErr]=useState("");const [saved,setSaved]=useState(false);
   const [sec,setSec]=useState("store");
+  const mk=sec;
   const isOpen=v.store_open!=="false";
-  const save=async(k,val)=>{setSv(true);setSaveErr("");setSaved(false);try{await dbUS(k,val);setV(x=>({...x,[k]:val}));setSaved(true);setTimeout(()=>setSaved(false),1800);if(rf)rf();}catch(e){setSaveErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
+  const save=async(k,val)=>{const cur=v[k]??"";if(String(cur)===String(val||""))return;setSv(true);setSaveErr("");setSaved(false);try{await dbUS(k,val);setV(x=>({...x,[k]:val}));setSaved(true);setTimeout(()=>setSaved(false),1800);if(rf)rf();}catch(e){setSaveErr("Gagal menyimpan: "+(e.message||"coba lagi"));}setSv(false);};
   const faqs=jp(v.faq_json,[]);
   const addFAQ=()=>{const n=[...faqs,{q:"",a:""}];save("faq_json",JSON.stringify(n));};
-  const updFAQ=(i,k,val)=>{const n=faqs.map((f,j)=>j===i?{...f,[k]:val}:f);setV(x=>({...x,faq_json:JSON.stringify(n)}));};
   const rmFAQ=(i)=>{if(!confirm("Hapus FAQ ini?"))return;const n=faqs.filter((_,j)=>j!==i);save("faq_json",JSON.stringify(n));};
-  const saveFAQ=()=>save("faq_json",v.faq_json);
 
   const vouchers=jp(v.vouchers_json,[]);
   const persistVouchers=(arr)=>save("vouchers_json",JSON.stringify(arr));
   const addVoucher=()=>persistVouchers([...vouchers,{code:"",type:"percentage",value:10,minOrder:0,maxDiscount:0,expiresAt:"",active:true,description:""}]);
-  const updVoucher=(i,k,val)=>{const n=vouchers.map((vc,j)=>j===i?{...vc,[k]:val}:vc);setV(x=>({...x,vouchers_json:JSON.stringify(n)}));};
   const rmVoucher=(i)=>{if(!confirm("Hapus voucher ini?"))return;persistVouchers(vouchers.filter((_,j)=>j!==i));};
-  const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
 
-  const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"stempel",icon:"🎖️",label:"Stempel"},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
-  const iptCls="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
-  const Field=({label,hint,children})=><div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>;
+  const hampers=jp(v.hampers_packages_json,DEFAULT_HAMPERS);
+  const persistHampers=(arr)=>save("hampers_packages_json",JSON.stringify(arr));
+  const addHampers=()=>persistHampers([...hampers,{id:`paket-${Date.now()}`,name:"Paket Baru",tier:"basic",price_per_box:50000,contents:[],allowed_flavors:[],description:""}]);
+  const rmHampers=(idx)=>{if(!confirm("Hapus paket ini?"))return;persistHampers(hampers.filter((_,j)=>j!==idx));};
+  const upHampers=(idx,patch)=>persistHampers(hampers.map((p,j)=>j===idx?{...p,...patch}:p));
+
+  const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"hampers",icon:"🎁",label:"Hampers",count:hampers.length},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"stempel",icon:"🎖️",label:"Stempel"},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
+  const iptCls=IPT_CLS;
 
   return(<div className="space-y-4">
     <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-500 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup":"Buka"}</button></div>
@@ -548,22 +719,58 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
       </div>
       <div className="bg-white rounded-2xl p-5 border border-stone-100">
         <div className="flex items-center gap-2 mb-4"><span className="text-lg">📍</span><h3 className="font-bold text-stone-800 text-sm">Info Toko</h3></div>
-        <Field label="Tentang Toko" hint="Cerita singkat yang tampil di halaman Info"><textarea value={v.store_about||""} onChange={e=>setV(x=>({...x,store_about:e.target.value}))} onBlur={()=>save("store_about",v.store_about||"")} rows={3} placeholder="Sinar Jaya Bakery menyajikan kue homemade..." className={iptCls}/></Field>
-        <Field label="Alamat"><textarea value={v.store_address||""} onChange={e=>setV(x=>({...x,store_address:e.target.value}))} onBlur={()=>save("store_address",v.store_address||"")} rows={2} placeholder="Jl. ..." className={iptCls}/></Field>
-        <Field label="Link Google Maps" hint="Tombol 'Buka di Maps' akan mengarah ke link ini"><input value={v.store_maps_url||""} onChange={e=>setV(x=>({...x,store_maps_url:e.target.value}))} onBlur={()=>save("store_maps_url",v.store_maps_url||"")} placeholder="https://maps.app.goo.gl/..." className={iptCls}/></Field>
-        <Field label="Jam Operasional"><textarea value={v.store_hours||""} onChange={e=>setV(x=>({...x,store_hours:e.target.value}))} onBlur={()=>save("store_hours",v.store_hours||"")} rows={2} placeholder="Senin–Sabtu: 08:00–20:00" className={iptCls}/></Field>
-        <Field label="Info Pembayaran" hint="Nomor rekening, QRIS, dll"><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className={iptCls}/></Field>
-        <Field label="Minimum Order"><input value={v.store_minimum_order||""} onChange={e=>setV(x=>({...x,store_minimum_order:e.target.value}))} onBlur={()=>save("store_minimum_order",v.store_minimum_order||"")} placeholder="Contoh: Rp 50.000 untuk delivery" className={iptCls}/></Field>
+        <Field label="Tentang Toko" hint="Cerita singkat yang tampil di halaman Info"><textarea key={`st-about-${mk}`} defaultValue={v.store_about||""} onBlur={e=>save("store_about",e.target.value)} rows={3} placeholder="Sinar Jaya Bakery menyajikan kue homemade..." className={iptCls}/></Field>
+        <Field label="Alamat"><textarea key={`st-addr-${mk}`} defaultValue={v.store_address||""} onBlur={e=>save("store_address",e.target.value)} rows={2} placeholder="Jl. ..." className={iptCls}/></Field>
+        <Field label="Link Google Maps" hint="Tombol 'Buka di Maps' akan mengarah ke link ini"><input key={`st-maps-${mk}`} defaultValue={v.store_maps_url||""} onBlur={e=>save("store_maps_url",e.target.value)} placeholder="https://maps.app.goo.gl/..." className={iptCls}/></Field>
+        <Field label="Jam Operasional"><textarea key={`st-hours-${mk}`} defaultValue={v.store_hours||""} onBlur={e=>save("store_hours",e.target.value)} rows={2} placeholder="Senin–Sabtu: 08:00–20:00" className={iptCls}/></Field>
+        <Field label="Info Pembayaran (Transfer Bank)" hint="Nomor rekening — tampil di Preview saat customer pilih Transfer Bank"><textarea key={`st-pay-${mk}`} defaultValue={v.store_payment_info||""} onBlur={e=>save("store_payment_info",e.target.value)} rows={3} placeholder="BCA 1234567890 a.n. ..." className={iptCls}/></Field>
+        <Field label="Minimum Order"><input key={`st-min-${mk}`} defaultValue={v.store_minimum_order||""} onBlur={e=>save("store_minimum_order",e.target.value)} placeholder="Contoh: Rp 50.000 untuk delivery" className={iptCls}/></Field>
+      </div>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center gap-2 mb-4"><span className="text-lg">📱</span><h3 className="font-bold text-stone-800 text-sm">QRIS</h3></div>
+        <Field label="Nama Merchant QRIS" hint="Tampil di atas gambar QR untuk customer"><input key={`st-qrisn-${mk}`} defaultValue={v.qris_merchant_name||""} onBlur={e=>save("qris_merchant_name",e.target.value)} placeholder="Sinar Jaya Bakery" className={iptCls}/></Field>
+        <ImgUp value={v.qris_image||""} onChange={val=>save("qris_image",val)} label="Gambar QRIS Statis"/>
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[11px] text-amber-800 leading-relaxed"><p className="font-bold mb-1">📝 Cara kerjanya:</p><p>1. Upload QR code statis dari aplikasi mobile banking / E-wallet (BCA, GoPay, OVO, dll)</p><p>2. Customer scan QR & input nominal sesuai total order</p><p>3. Setelah customer klik "Sudah Bayar", order berstatus <span className="font-bold">Menunggu Verifikasi</span> dengan tag 🟡 QRIS</p><p>4. Cek mutasi rekening/dompet, lalu klik <span className="font-bold">"Tandai Bayar"</span> untuk konfirmasi</p></div>
       </div>
     </>}
 
     {sec==="general"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
       <div className="flex items-center gap-2 mb-4"><span className="text-lg">⚙️</span><h3 className="font-bold text-stone-800 text-sm">Pengaturan Umum</h3></div>
       <div className="grid grid-cols-2 gap-3 mb-2">
-        <Field label="Kuota Order/Hari" hint="Khusus Special"><input type="number" min="1" value={v.daily_quota||"20"} onChange={e=>setV(x=>({...x,daily_quota:e.target.value}))} onBlur={()=>save("daily_quota",v.daily_quota)} className={iptCls}/></Field>
-        <Field label="Lead Time Daily/Savory" hint="0 = bisa same day"><div className="relative"><input type="number" min="0" value={v.lead_time_classic||"0"} onChange={e=>setV(x=>({...x,lead_time_classic:e.target.value}))} onBlur={()=>save("lead_time_classic",v.lead_time_classic)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
+        <Field label="Kuota Order/Hari" hint="Khusus Special"><input key={`st-quota-${mk}`} type="number" min="1" defaultValue={v.daily_quota||"20"} onBlur={e=>save("daily_quota",e.target.value)} className={iptCls}/></Field>
+        <Field label="Lead Time Daily/Savory" hint="0 = bisa same day"><div className="relative"><input key={`st-ltc-${mk}`} type="number" min="0" defaultValue={v.lead_time_classic||"0"} onBlur={e=>save("lead_time_classic",e.target.value)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
       </div>
-      <Field label="Lead Time Special" hint="Minimum H-n untuk kategori Special"><div className="relative max-w-[50%]"><input type="number" min="0" value={v.lead_time_special||"5"} onChange={e=>setV(x=>({...x,lead_time_special:e.target.value}))} onBlur={()=>save("lead_time_special",v.lead_time_special)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
+      <Field label="Lead Time Special" hint="Minimum H-n untuk kategori Special"><div className="relative max-w-[50%]"><input key={`st-lts-${mk}`} type="number" min="0" defaultValue={v.lead_time_special||"5"} onBlur={e=>save("lead_time_special",e.target.value)} className={`${iptCls} pr-12`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">hari</span></div></Field>
+    </div>}
+
+    {sec==="hampers"&&<div className="space-y-4">
+      <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 ${v.hampers_enabled!=="false"?"bg-purple-50 border-purple-200":"bg-stone-50 border-stone-200"}`}>
+        <div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{v.hampers_enabled!=="false"?"🎁 Hampers Aktif":"⚪ Hampers Nonaktif"}</p><p className="text-xs text-stone-500 mt-0.5">{v.hampers_enabled!=="false"?"Banner Hampers tampil di beranda customer":"Fitur disembunyikan dari customer"}</p></div>
+        <button onClick={()=>save("hampers_enabled",v.hampers_enabled!=="false"?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${v.hampers_enabled!=="false"?"bg-stone-500 text-white hover:bg-stone-600":"bg-purple-600 text-white hover:bg-purple-700"}`}>{v.hampers_enabled!=="false"?"Nonaktifkan":"Aktifkan"}</button>
+      </div>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center gap-2 mb-4"><span className="text-lg">⚙️</span><h3 className="font-bold text-stone-800 text-sm">Pengaturan Bulk Order</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Minimum Box" hint="Syarat minimum bulk order"><input key={`st-hmin-${mk}`} type="number" min="1" defaultValue={v.hampers_min_box||"20"} onBlur={e=>save("hampers_min_box",e.target.value||"20")} className={iptCls}/></Field>
+          <Field label="Persen DP" hint="0–100"><div className="relative"><input key={`st-hdp-${mk}`} type="number" min="1" max="100" defaultValue={v.hampers_dp_percent||"50"} onBlur={e=>save("hampers_dp_percent",e.target.value||"50")} className={`${iptCls} pr-8`}/><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">%</span></div></Field>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className="text-lg">📦</span><div><h3 className="font-bold text-stone-800 text-sm">Daftar Paket Hampers</h3><p className="text-[11px] text-stone-400">Tampil di halaman Hampers Builder</p></div></div><button onClick={addHampers} className="text-xs font-bold text-white bg-amber-800 hover:bg-amber-900 px-3 py-2 rounded-xl transition">+ Tambah</button></div>
+        {hampers.length===0&&<div className="text-center py-8 text-stone-300"><p className="text-3xl mb-2">🎁</p><p className="text-sm text-stone-400">Belum ada paket</p></div>}
+        {hampers.map((p,i)=>(<div key={p.id||i} className="mb-3 rounded-2xl p-4 border-2 border-stone-200 bg-stone-50/50">
+          <div className="flex items-center justify-between mb-3 gap-2"><span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-md">#{i+1} · {p.tier||"basic"}</span><button onClick={()=>rmHampers(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div>
+          <Field label="Nama Paket"><input key={`hp-n-${p.id||i}`} defaultValue={p.name||""} onBlur={e=>{if((p.name||"")===e.target.value)return;upHampers(i,{name:e.target.value});}} placeholder="Paket A (Basic)" className={iptCls}/></Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Tier"><select value={p.tier||"basic"} onChange={e=>upHampers(i,{tier:e.target.value})} className={iptCls}><option value="basic">Basic</option><option value="standard">Standard</option><option value="premium">Premium</option></select></Field>
+            <Field label="Harga per Box (Rp)"><input key={`hp-p-${p.id||i}`} type="number" min="0" defaultValue={p.price_per_box||0} onBlur={e=>{const val=parseInt(e.target.value)||0;if((p.price_per_box||0)===val)return;upHampers(i,{price_per_box:val});}} className={iptCls}/></Field>
+          </div>
+          <Field label="Deskripsi singkat"><input key={`hp-d-${p.id||i}`} defaultValue={p.description||""} onBlur={e=>{if((p.description||"")===e.target.value)return;upHampers(i,{description:e.target.value});}} placeholder="Cocok untuk..." className={iptCls}/></Field>
+          <Field label="Isi Paket" hint="1 item per baris, format: nama × jumlah (misal: Donat × 6)"><textarea key={`hp-c-${p.id||i}`} defaultValue={(p.contents||[]).map(c=>`${c.label} × ${c.qty}`).join("\n")} onBlur={e=>{const lines=e.target.value.split("\n").map(l=>l.trim()).filter(Boolean);const parsed=lines.map(l=>{const m=l.match(/^(.+?)\s*[×x*]\s*(\d+)$/i);return m?{label:m[1].trim(),qty:parseInt(m[2])||1}:{label:l,qty:1};});upHampers(i,{contents:parsed});}} rows={4} placeholder="Donat × 6&#10;Roti manis × 4" className={iptCls}/></Field>
+          <Field label="Pilihan Rasa (opsional)" hint="Pisah dengan koma — customer boleh pilih"><input key={`hp-f-${p.id||i}`} defaultValue={(p.allowed_flavors||[]).join(", ")} onBlur={e=>{const arr=e.target.value.split(",").map(x=>x.trim()).filter(Boolean);upHampers(i,{allowed_flavors:arr});}} placeholder="Coklat, Keju, Strawberry" className={iptCls}/></Field>
+        </div>))}
+      </div>
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[11px] text-amber-900 leading-relaxed"><p className="font-bold mb-1">📝 Cara kerjanya:</p><p>1. Customer buka banner Hampers di beranda → pilih paket / custom request</p><p>2. Isi nama, HP, jumlah box (≥ minimum), tanggal kirim</p><p>3. Request masuk ke tab Pesanan dengan badge <span className="font-bold">🎁 HAMPERS</span></p><p>4. Kamu cek stok & kapasitas → klik <span className="font-bold">Set Harga Final</span> untuk update total</p><p>5. Konfirmasi ke customer via WA → customer bayar DP → tandai Lunas</p></div>
     </div>}
 
     {sec==="voucher"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -571,33 +778,33 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
       {vouchers.length===0&&<div className="text-center py-8 text-stone-300"><p className="text-3xl mb-2">🎟️</p><p className="text-sm text-stone-400">Belum ada voucher</p></div>}
       {vouchers.map((vc,i)=>{const expired=vc.expiresAt&&new Date(vc.expiresAt+"T23:59:59")<new Date();const active=vc.active!==false;return(<div key={i} className={`mb-3 rounded-2xl p-4 border-2 ${expired?"bg-red-50/50 border-red-200":active?"bg-emerald-50/30 border-emerald-200":"bg-stone-50 border-stone-200"}`}>
         <div className="flex items-center justify-between mb-3 gap-2"><div className="flex items-center gap-2 flex-wrap min-w-0"><span className={`text-xs font-mono font-bold px-2 py-1 rounded-md ${active&&!expired?"bg-emerald-100 text-emerald-800":"bg-stone-200 text-stone-500"}`}>{vc.code||"KODE"}</span>{expired&&<span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Kedaluwarsa</span>}{!active&&!expired&&<span className="text-[10px] font-semibold bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">Nonaktif</span>}</div><div className="flex items-center gap-1"><label className="flex items-center gap-1 text-xs cursor-pointer px-2 py-1 rounded-lg hover:bg-white/50"><input type="checkbox" checked={active} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,active:e.target.checked}:x);persistVouchers(n);}} className="w-3.5 h-3.5 accent-emerald-600"/><span className="text-stone-600 font-medium">{active?"Aktif":"Off"}</span></label><button onClick={()=>rmVoucher(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div></div>
-        <Field label="Kode"><input value={vc.code||""} onChange={e=>updVoucher(i,"code",e.target.value.toUpperCase())} onBlur={saveVouchers} placeholder="HEMAT10" className={`${iptCls} font-mono uppercase`}/></Field>
+        <Field label="Kode"><input key={`vc-code-${i}`} defaultValue={vc.code||""} onBlur={e=>{const val=e.target.value.toUpperCase();if((vc.code||"")===val)return;persistVouchers(vouchers.map((x,j)=>j===i?{...x,code:val}:x));}} placeholder="HEMAT10" className={`${iptCls} font-mono uppercase`}/></Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Tipe"><select value={vc.type||"percentage"} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,type:e.target.value}:x);persistVouchers(n);}} className={iptCls}><option value="percentage">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></Field>
-          <Field label={vc.type==="fixed"?"Potongan (Rp)":"Persen (%)"}><input type="number" min="0" value={vc.value||0} onChange={e=>updVoucher(i,"value",parseInt(e.target.value)||0)} onBlur={saveVouchers} className={iptCls}/></Field>
+          <Field label={vc.type==="fixed"?"Potongan (Rp)":"Persen (%)"}><input key={`vc-val-${i}`} type="number" min="0" defaultValue={vc.value||0} onBlur={e=>{const val=parseInt(e.target.value)||0;if((vc.value||0)===val)return;persistVouchers(vouchers.map((x,j)=>j===i?{...x,value:val}:x));}} className={iptCls}/></Field>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Min. Order (Rp)"><input type="number" min="0" value={vc.minOrder||0} onChange={e=>updVoucher(i,"minOrder",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className={iptCls}/></Field>
-          {vc.type==="percentage"&&<Field label="Maks. Diskon" hint="0 = tanpa batas"><input type="number" min="0" value={vc.maxDiscount||0} onChange={e=>updVoucher(i,"maxDiscount",parseInt(e.target.value)||0)} onBlur={saveVouchers} placeholder="0" className={iptCls}/></Field>}
+          <Field label="Min. Order (Rp)"><input key={`vc-min-${i}`} type="number" min="0" defaultValue={vc.minOrder||0} onBlur={e=>{const val=parseInt(e.target.value)||0;if((vc.minOrder||0)===val)return;persistVouchers(vouchers.map((x,j)=>j===i?{...x,minOrder:val}:x));}} placeholder="0" className={iptCls}/></Field>
+          {vc.type==="percentage"&&<Field label="Maks. Diskon" hint="0 = tanpa batas"><input key={`vc-max-${i}`} type="number" min="0" defaultValue={vc.maxDiscount||0} onBlur={e=>{const val=parseInt(e.target.value)||0;if((vc.maxDiscount||0)===val)return;persistVouchers(vouchers.map((x,j)=>j===i?{...x,maxDiscount:val}:x));}} placeholder="0" className={iptCls}/></Field>}
         </div>
-        <Field label="Berlaku sampai"><input type="date" value={vc.expiresAt||""} onChange={e=>updVoucher(i,"expiresAt",e.target.value)} onBlur={saveVouchers} className={iptCls}/></Field>
-        <Field label="Deskripsi"><input value={vc.description||""} onChange={e=>updVoucher(i,"description",e.target.value)} onBlur={saveVouchers} placeholder="Contoh: Promo lebaran" className={iptCls}/></Field>
+        <Field label="Berlaku sampai"><input type="date" value={vc.expiresAt||""} onChange={e=>{const n=vouchers.map((x,j)=>j===i?{...x,expiresAt:e.target.value}:x);persistVouchers(n);}} className={iptCls}/></Field>
+        <Field label="Deskripsi"><input key={`vc-desc-${i}`} defaultValue={vc.description||""} onBlur={e=>{const val=e.target.value;if((vc.description||"")===val)return;persistVouchers(vouchers.map((x,j)=>j===i?{...x,description:val}:x));}} placeholder="Contoh: Promo lebaran" className={iptCls}/></Field>
       </div>);})}
     </div>}
 
     {sec==="stempel"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
       <div className="flex items-center gap-2 mb-4"><span className="text-lg">🎖️</span><div><h3 className="font-bold text-stone-800 text-sm">Program Stempel Loyalitas</h3><p className="text-[11px] text-stone-400">Setiap order customer dapat 1 stempel. Kumpulkan untuk dapat reward.</p></div></div>
       <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 mb-4 ${v.stempel_enabled==="true"?"bg-emerald-50 border-emerald-200":"bg-stone-50 border-stone-200"}`}><div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{v.stempel_enabled==="true"?"✅ Program Aktif":"⚪ Program Nonaktif"}</p><p className="text-xs text-stone-500 mt-0.5">{v.stempel_enabled==="true"?"Customer bisa lihat & kumpulkan stempel":"Fitur disembunyikan dari customer"}</p></div><button onClick={()=>save("stempel_enabled",v.stempel_enabled==="true"?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${v.stempel_enabled==="true"?"bg-stone-500 text-white hover:bg-stone-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{v.stempel_enabled==="true"?"Nonaktifkan":"Aktifkan"}</button></div>
-      <Field label="Target Stempel" hint="Jumlah stempel untuk klaim reward (contoh: 10)"><input type="number" min="1" value={v.stempel_target||"10"} onChange={e=>setV(x=>({...x,stempel_target:e.target.value}))} onBlur={()=>save("stempel_target",v.stempel_target||"10")} className={iptCls}/></Field>
-      <Field label="Minimum Belanja per Stempel" hint="Order dengan total ≥ nilai ini dapat 1 stempel. 0 = semua order dapat stempel"><input type="number" min="0" value={v.stempel_min_total||"0"} onChange={e=>setV(x=>({...x,stempel_min_total:e.target.value}))} onBlur={()=>save("stempel_min_total",v.stempel_min_total||"0")} className={iptCls}/></Field>
-      <Field label="Deskripsi Reward" hint="Yang didapat customer setelah stempel penuh"><textarea value={v.stempel_reward||""} onChange={e=>setV(x=>({...x,stempel_reward:e.target.value}))} onBlur={()=>save("stempel_reward",v.stempel_reward||"")} rows={2} placeholder="Contoh: Diskon Rp 50.000 / 1 loyang brownies gratis / Voucher 20%" className={iptCls}/></Field>
+      <Field label="Target Stempel" hint="Jumlah stempel untuk klaim reward (contoh: 10)"><input key={`st-stgt-${mk}`} type="number" min="1" defaultValue={v.stempel_target||"10"} onBlur={e=>save("stempel_target",e.target.value||"10")} className={iptCls}/></Field>
+      <Field label="Minimum Belanja per Stempel" hint="Order dengan total ≥ nilai ini dapat 1 stempel. 0 = semua order dapat stempel"><input key={`st-smin-${mk}`} type="number" min="0" defaultValue={v.stempel_min_total||"0"} onBlur={e=>save("stempel_min_total",e.target.value||"0")} className={iptCls}/></Field>
+      <Field label="Deskripsi Reward" hint="Yang didapat customer setelah stempel penuh"><textarea key={`st-srw-${mk}`} defaultValue={v.stempel_reward||""} onBlur={e=>save("stempel_reward",e.target.value)} rows={2} placeholder="Contoh: Diskon Rp 50.000 / 1 loyang brownies gratis / Voucher 20%" className={iptCls}/></Field>
       <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[11px] text-amber-800 leading-relaxed"><p className="font-bold mb-1">📝 Cara kerjanya:</p><p>1. Customer isi nomor HP/WA saat order</p><p>2. Setelah order dibayar/selesai, otomatis dapat stempel</p><p>3. Customer cek progress di halaman utama dengan HP yang sama</p><p>4. Stempel penuh = klaim reward ke admin saat order berikutnya</p><p className="mt-2 text-amber-900 font-semibold">⚠️ Customer harus pakai HP yang sama tiap order, kalau beda = terhitung customer lain</p></div>
     </div>}
 
     {sec==="faq"&&<div className="bg-white rounded-2xl p-5 border border-stone-100">
       <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className="text-lg">❓</span><div><h3 className="font-bold text-stone-800 text-sm">FAQ</h3><p className="text-[11px] text-stone-400">Tampil di halaman bantuan customer</p></div></div><button onClick={addFAQ} className="text-xs font-bold text-white bg-amber-800 hover:bg-amber-900 px-3 py-2 rounded-xl transition">+ Tambah</button></div>
       {faqs.length===0&&<div className="text-center py-8 text-stone-300"><p className="text-3xl mb-2">❓</p><p className="text-sm text-stone-400">Belum ada FAQ</p></div>}
-      {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100"><div className="flex items-center justify-between mb-2"><span className="text-xs font-bold text-stone-500">#{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div><Field label="Pertanyaan"><input value={f.q} onChange={e=>updFAQ(i,"q",e.target.value)} onBlur={saveFAQ} placeholder="Berapa lama pemesanan?" className={iptCls}/></Field><Field label="Jawaban"><textarea value={f.a} onChange={e=>updFAQ(i,"a",e.target.value)} onBlur={saveFAQ} rows={2} placeholder="Untuk kue spesial minimal H-5..." className={iptCls}/></Field></div>))}
+      {faqs.map((f,i)=>(<div key={i} className="mb-3 bg-stone-50 rounded-2xl p-4 border border-stone-100"><div className="flex items-center justify-between mb-2"><span className="text-xs font-bold text-stone-500">#{i+1}</span><button onClick={()=>rmFAQ(i)} className="text-red-400 hover:bg-red-100 w-7 h-7 rounded-lg transition flex items-center justify-center" title="Hapus">🗑️</button></div><Field label="Pertanyaan"><input key={`faq-q-${i}`} defaultValue={f.q||""} onBlur={e=>{const val=e.target.value;if((f.q||"")===val)return;save("faq_json",JSON.stringify(faqs.map((x,j)=>j===i?{...x,q:val}:x)));}} placeholder="Berapa lama pemesanan?" className={iptCls}/></Field><Field label="Jawaban"><textarea key={`faq-a-${i}`} defaultValue={f.a||""} onBlur={e=>{const val=e.target.value;if((f.a||"")===val)return;save("faq_json",JSON.stringify(faqs.map((x,j)=>j===i?{...x,a:val}:x)));}} rows={2} placeholder="Untuk kue spesial minimal H-5..." className={iptCls}/></Field></div>))}
     </div>}
 
     {(sv||saved)&&<div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-xs font-semibold shadow-lg transition-all ${sv?"bg-amber-100 text-amber-800 border border-amber-200":"bg-emerald-600 text-white"}`}>{sv?"💾 Menyimpan...":"✓ Tersimpan"}</div>}
@@ -879,15 +1086,16 @@ export default function App(){
   const refreshStock=async()=>{try{const s=await dbS();const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSt(sm);}catch(e){console.error(e);}};
 
   return(<>
-    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap} settings={st}/>}
+    {pg==="home"&&<Home products={products} onCat={c=>{setCat(c);setPg("cat")}} onProd={id=>{setPid(id);setPg("prod")}} cart={cart} onCart={()=>setPg("cart")} heroBg={st.hero_bg||""} loading={ld} onTrack={()=>setPg("track")} onInfo={()=>setPg("info")} onFAQ={()=>setPg("faq")} onHampers={()=>setPg("hampers")} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap} settings={st}/>}
     {pg==="track"&&<Tracking onBack={goH} onHome={goH}/>}
     {pg==="info"&&<StoreInfo settings={st} onBack={goH} onHome={goH}/>}
     {pg==="faq"&&<FAQ settings={st} onBack={goH} onHome={goH}/>}
+    {pg==="hampers"&&<HampersBuilder settings={st} onBack={goH} onHome={goH}/>}
     {pg==="cat"&&<Catalog products={products} category={cat} onProd={id=>{setPid(id);setPg("prod")}} onBack={goH} cart={cart} onCart={()=>setPg("cart")} onHome={goH} schedIds={readSchedIds(st.daily_schedule_json)} stockMap={stockMap}/>}
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH} stockMap={stockMap}/>}
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH} stockMap={stockMap}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
-    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
+    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} settings={st} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
     {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
   </>);
 }
