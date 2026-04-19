@@ -107,6 +107,8 @@ const Btn = ({children,onClick,variant="primary",full,disabled,className=""}) =>
   return <button onClick={onClick} disabled={disabled} className={`${b} ${sz} ${vr[variant]} ${disabled?"opacity-50 cursor-not-allowed":""} ${className}`}>{children}</button>;
 };
 const Inp = ({label,required,...p}) => (<div className="mb-4">{label&&<label className="block text-sm font-medium text-stone-600 mb-1.5">{label}{required&&<span className="text-red-400 ml-0.5">*</span>}</label>}<input {...p} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent focus:bg-white transition"/></div>);
+const IPT_CLS="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
+const Field = ({label,hint,children}) => (<div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>);
 const ImgUp = ({value,onChange,label="Foto"}) => { const [drag,setDrag]=useState(false);const ref=useRef();const proc=useCallback(f=>{if(!f||!f.type.startsWith("image/"))return;const r=new FileReader();r.onload=e=>onChange(e.target.result);r.readAsDataURL(f);},[onChange]); return(<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">{label}</label>{value?(<div className="relative rounded-2xl overflow-hidden"><img src={value} alt="" className="w-full h-44 object-cover"/><button onClick={()=>onChange("")} className="absolute top-3 right-3 bg-black/50 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-black/70">✕</button></div>):(<div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])proc(e.dataTransfer.files[0])}} onPaste={e=>{const it=e.clipboardData?.items;if(it)for(let i=0;i<it.length;i++)if(it[i].type.startsWith("image/")){proc(it[i].getAsFile());break;}}} tabIndex={0} onClick={()=>ref.current?.click()} className={`w-full h-36 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${drag?"border-amber-400 bg-amber-50":"border-stone-200 hover:border-amber-300"}`}><span className="text-3xl mb-2 opacity-40">📷</span><p className="text-xs text-stone-400 text-center px-4">Klik, drag & drop, atau paste</p><input ref={ref} type="file" accept="image/*" className="hidden" onChange={e=>{if(e.target.files[0])proc(e.target.files[0])}}/></div>)}</div>);};
 
 const ImgsUp = ({value,onChange,label="Foto Produk",max=5}) => {
@@ -378,16 +380,24 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
     <Btn onClick={go} full disabled={sub}>{sub?"Memproses...":"Lihat Preview →"}</Btn></div></Shell>);
 };
 
-const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
+const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
+  const hasQris=!!(st?.qris_image);
+  const hasBank=!!(st?.store_payment_info);
+  const [payMethod,setPayMethod]=useState(hasQris?"qris":"bank");
   const sub=co.subtotal||cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
   const disc=co.discount||0,tot=co.total!=null?co.total:Math.max(0,sub-disc),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
   const timeStr=co.time?` pukul ${co.time}`:"";
   const voucherLine=co.voucher?`%0AVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
-  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}%0A%0AStatus: Menunggu Verifikasi`;
+  const payLine=payMethod==="qris"?`%0A%0AMetode Bayar: QRIS (Menunggu konfirmasi admin)`:`%0A%0AMetode Bayar: Transfer Bank`;
+  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}${payLine}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
-  const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:""].filter(Boolean).join(" ");
+  const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":"[Transfer Bank]";
+  const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:"",payTag].filter(Boolean).join(" ");
   const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
+
+  const copyAmount=()=>{try{navigator.clipboard?.writeText(String(tot));}catch{}};
+
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
       <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
@@ -397,7 +407,38 @@ const Preview = ({cart,checkout:co,onSend,onBack,onHome}) => {
         <div className="flex justify-between pt-2 border-t border-stone-100"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
       </div>
       <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
-    <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":"📲 Kirim ke WhatsApp"}</Btn>
+
+    {(hasQris||hasBank)&&<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
+      <p className="text-sm font-bold text-stone-800 mb-3">💳 Metode Pembayaran</p>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {hasQris&&<button onClick={()=>setPayMethod("qris")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="qris"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">📱</p><p className="text-xs font-bold text-stone-800">QRIS</p><p className="text-[10px] text-stone-400">Scan & bayar</p></button>}
+        {hasBank&&<button onClick={()=>setPayMethod("bank")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="bank"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">🏦</p><p className="text-xs font-bold text-stone-800">Transfer Bank</p><p className="text-[10px] text-stone-400">Via rekening</p></button>}
+      </div>
+
+      {payMethod==="qris"&&hasQris&&<div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+        {st.qris_merchant_name&&<p className="text-center text-xs font-bold text-amber-900 mb-2">{st.qris_merchant_name}</p>}
+        <div className="bg-white rounded-2xl p-3 mb-3"><img src={st.qris_image} alt="QRIS" className="w-full max-w-[280px] mx-auto rounded-xl"/></div>
+        <div className="bg-white rounded-xl p-3 mb-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+        <div className="text-[11px] text-amber-900 leading-relaxed space-y-1">
+          <p className="font-bold">Cara bayar:</p>
+          <p>1. Buka aplikasi mobile banking / E-wallet</p>
+          <p>2. Pilih menu <span className="font-semibold">Scan QRIS</span></p>
+          <p>3. Scan gambar di atas</p>
+          <p>4. Masukkan nominal <span className="font-semibold">{fmt(tot)}</span></p>
+          <p>5. Konfirmasi & selesaikan pembayaran</p>
+          <p>6. Klik tombol <span className="font-semibold">"Saya Sudah Bayar"</span> di bawah</p>
+        </div>
+        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-[11px] text-yellow-800"><span className="font-bold">ℹ️ Penting:</span> Setelah klik "Sudah Bayar", order akan berstatus <span className="font-bold">Menunggu Konfirmasi</span>. Admin akan cek pembayaran & ubah ke status <span className="font-bold">Lunas</span>.</div>
+      </div>}
+
+      {payMethod==="bank"&&hasBank&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
+        <p className="text-[11px] text-stone-400 mb-1">Info Rekening / Pembayaran</p>
+        <p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p>
+        <div className="mt-3 bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+      </div>}
+    </div>}
+
+    <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":payMethod==="qris"?"✅ Saya Sudah Bayar (QRIS) → Kirim ke WA":"📲 Kirim ke WhatsApp"}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
 };
 
@@ -434,15 +475,15 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
 
     <Inp placeholder="Cari nama / no HP / no order..." value={q} onChange={e=>setQ(e.target.value)}/>
     <div className="flex gap-2 mb-5 overflow-x-auto pb-1">{["all","waiting","paid","process","done"].map(s=><button key={s} onClick={()=>setFs(s)} className={`text-xs px-4 py-2 rounded-full whitespace-nowrap border-2 transition-all font-medium ${s===fs?"bg-amber-800 text-white border-amber-800":"border-stone-200 text-stone-500 hover:border-stone-300"}`}>{s==="all"?"Semua":sL[s]}{s==="waiting"&&newCount>0?` (${newCount})`:""}</button>)}</div>
-    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>(<div key={o.id} className="bg-white rounded-2xl p-5 mb-3 shadow-sm border border-stone-100">
-      <div className="flex items-center justify-between mb-3"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div>
+    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>{const isQris=(o.note||"").includes("[QRIS");return(<div key={o.id} className="bg-white rounded-2xl p-5 mb-3 shadow-sm border border-stone-100">
+      <div className="flex items-center justify-between mb-3 gap-2"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><div className="flex items-center gap-1.5 flex-wrap">{isQris&&o.status==="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">📱 QRIS</span>}{isQris&&o.status!=="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-stone-100 text-stone-500">📱 QRIS</span>}<Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div></div>
       <p className="text-sm text-stone-600">👤 {o.customer_name} · 📱 {o.customer_phone}</p>
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
       {o.reference_image&&<div className="mt-2"><p className="text-xs text-stone-400 mb-1">📷 Referensi:</p><img src={o.reference_image} alt="Referensi" className="w-32 h-32 object-cover rounded-lg border border-stone-200"/></div>}
       <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}</span></div>
-      <div className="flex gap-2 mt-4">{sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?"💰 Tandai Bayar":o.status==="paid"?"⚙️ Proses":"✅ Selesai"}</Btn>}{o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}</div>
-    </div>))}
+      <div className="flex gap-2 mt-4">{sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isQris?"💰 Konfirmasi Lunas (QRIS)":"💰 Tandai Bayar"):o.status==="paid"?"⚙️ Proses":"✅ Selesai"}</Btn>}{o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}</div>
+    </div>);})}
   </div>);
 };
 
@@ -529,8 +570,7 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
   const saveVouchers=()=>save("vouchers_json",v.vouchers_json);
 
   const secs=[{id:"store",icon:"🏪",label:"Toko"},{id:"general",icon:"⚙️",label:"Umum"},{id:"voucher",icon:"🎟️",label:"Voucher",count:vouchers.length},{id:"stempel",icon:"🎖️",label:"Stempel"},{id:"faq",icon:"❓",label:"FAQ",count:faqs.length}];
-  const iptCls="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
-  const Field=({label,hint,children})=><div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>;
+  const iptCls=IPT_CLS;
 
   return(<div className="space-y-4">
     <div className={`rounded-2xl p-4 border-2 flex items-center justify-between gap-3 ${isOpen?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div className="min-w-0"><p className="font-bold text-stone-800 text-sm">{isOpen?"🟢 Toko Buka":"🔴 Toko Tutup"}</p><p className="text-xs text-stone-500 mt-0.5">{isOpen?"Customer bisa order":"Customer tidak bisa order"}</p></div><button onClick={()=>save("store_open",isOpen?"false":"true")} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isOpen?"bg-red-500 text-white hover:bg-red-600":"bg-emerald-600 text-white hover:bg-emerald-700"}`}>{isOpen?"Tutup":"Buka"}</button></div>
@@ -552,8 +592,14 @@ const ASettings = ({settings:st,onRefresh:rf}) => {
         <Field label="Alamat"><textarea value={v.store_address||""} onChange={e=>setV(x=>({...x,store_address:e.target.value}))} onBlur={()=>save("store_address",v.store_address||"")} rows={2} placeholder="Jl. ..." className={iptCls}/></Field>
         <Field label="Link Google Maps" hint="Tombol 'Buka di Maps' akan mengarah ke link ini"><input value={v.store_maps_url||""} onChange={e=>setV(x=>({...x,store_maps_url:e.target.value}))} onBlur={()=>save("store_maps_url",v.store_maps_url||"")} placeholder="https://maps.app.goo.gl/..." className={iptCls}/></Field>
         <Field label="Jam Operasional"><textarea value={v.store_hours||""} onChange={e=>setV(x=>({...x,store_hours:e.target.value}))} onBlur={()=>save("store_hours",v.store_hours||"")} rows={2} placeholder="Senin–Sabtu: 08:00–20:00" className={iptCls}/></Field>
-        <Field label="Info Pembayaran" hint="Nomor rekening, QRIS, dll"><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className={iptCls}/></Field>
+        <Field label="Info Pembayaran (Transfer Bank)" hint="Nomor rekening — tampil di Preview saat customer pilih Transfer Bank"><textarea value={v.store_payment_info||""} onChange={e=>setV(x=>({...x,store_payment_info:e.target.value}))} onBlur={()=>save("store_payment_info",v.store_payment_info||"")} rows={3} placeholder="BCA 1234567890 a.n. ..." className={iptCls}/></Field>
         <Field label="Minimum Order"><input value={v.store_minimum_order||""} onChange={e=>setV(x=>({...x,store_minimum_order:e.target.value}))} onBlur={()=>save("store_minimum_order",v.store_minimum_order||"")} placeholder="Contoh: Rp 50.000 untuk delivery" className={iptCls}/></Field>
+      </div>
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <div className="flex items-center gap-2 mb-4"><span className="text-lg">📱</span><h3 className="font-bold text-stone-800 text-sm">QRIS</h3></div>
+        <Field label="Nama Merchant QRIS" hint="Tampil di atas gambar QR untuk customer"><input value={v.qris_merchant_name||""} onChange={e=>setV(x=>({...x,qris_merchant_name:e.target.value}))} onBlur={()=>save("qris_merchant_name",v.qris_merchant_name||"")} placeholder="Sinar Jaya Bakery" className={iptCls}/></Field>
+        <ImgUp value={v.qris_image||""} onChange={val=>save("qris_image",val)} label="Gambar QRIS Statis"/>
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[11px] text-amber-800 leading-relaxed"><p className="font-bold mb-1">📝 Cara kerjanya:</p><p>1. Upload QR code statis dari aplikasi mobile banking / E-wallet (BCA, GoPay, OVO, dll)</p><p>2. Customer scan QR & input nominal sesuai total order</p><p>3. Setelah customer klik "Sudah Bayar", order berstatus <span className="font-bold">Menunggu Verifikasi</span> dengan tag 🟡 QRIS</p><p>4. Cek mutasi rekening/dompet, lalu klik <span className="font-bold">"Tandai Bayar"</span> untuk konfirmasi</p></div>
       </div>
     </>}
 
@@ -887,7 +933,7 @@ export default function App(){
     {pg==="prod"&&pr&&<Product product={pr} onBack={()=>setPg(cat?"cat":"home")} onAdd={it=>{d({type:"ADD",item:it});setPg("cart")}} cart={cart} onCart={()=>setPg("cart")} onHome={goH} stockMap={stockMap}/>}
     {pg==="cart"&&<Cart cart={cart} dispatch={d} onCheckout={async()=>{await loadCO();setPg("co")}} onBack={()=>setPg("home")} onHome={goH} stockMap={stockMap}/>}
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
-    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
+    {pg==="prev"&&co&&<Preview cart={cart} checkout={co} settings={st} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
     {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
   </>);
 }
