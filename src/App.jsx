@@ -466,7 +466,7 @@ const HampersBuilder = ({settings:st,onBack,onHome}) => {
   const boxes=Math.max(0,parseInt(fm.boxes)||0);
   const estTotal=selPkg&&mode==="paket"?boxes*(selPkg.price_per_box||0):0;
   const estDP=Math.round(estTotal*dpPct/100);
-  const minDate=(()=>{const d=new Date();d.setDate(d.getDate()+3);return d.toISOString().split("T")[0];})();
+  const minDate=(()=>{const d=new Date();d.setDate(d.getDate()+5);return d.toISOString().split("T")[0];})();
 
   const submit=async()=>{
     setErr("");
@@ -539,7 +539,7 @@ const HampersBuilder = ({settings:st,onBack,onHome}) => {
       <Inp label="Nama Pemesan / Perusahaan" required value={fm.name} onChange={e=>setFm(x=>({...x,name:e.target.value}))} placeholder="PT Sinar Abadi / Budi"/>
       <Inp label="Nomor HP/WA" required value={fm.phone} onChange={e=>setFm(x=>({...x,phone:e.target.value}))} placeholder="08xxxxxxxxxx" type="tel"/>
       <Inp label={`Jumlah Box (min. ${minBox})`} required value={fm.boxes} onChange={e=>setFm(x=>({...x,boxes:e.target.value}))} placeholder={String(minBox)} type="number" min={minBox}/>
-      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Pengambilan<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={fm.date} min={minDate} onChange={e=>setFm(x=>({...x,date:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1">Minimal H-3 untuk persiapan produksi</p></div>
+      <div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tanggal Pengambilan<span className="text-red-400 ml-0.5">*</span></label><input type="date" value={fm.date} min={minDate} onChange={e=>setFm(x=>({...x,date:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"/><p className="text-xs text-stone-400 mt-1">Minimal H-5 untuk persiapan produksi</p></div>
 
       {mode==="paket"&&selPkg&&(selPkg.allowed_flavors||[]).length>0&&<div className="mb-4"><label className="block text-sm font-medium text-stone-600 mb-1.5">Rasa Pilihan <span className="text-stone-400 font-normal text-xs">(opsional, boleh pilih beberapa)</span></label><div className="flex flex-wrap gap-2">{selPkg.allowed_flavors.map(f=>{const sel=fm.flavors.includes(f);return(<button key={f} onClick={()=>toggleFlavor(f)} className={`border-2 rounded-full px-3 py-1.5 text-xs font-medium transition ${sel?"border-amber-500 bg-amber-50 text-amber-900":"border-stone-200 text-stone-600 hover:border-stone-300"}`}>{sel&&"✓ "}{f}</button>);})}</div></div>}
 
