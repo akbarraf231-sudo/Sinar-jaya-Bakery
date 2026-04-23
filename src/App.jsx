@@ -390,15 +390,15 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
   const hasQris=!!(st?.qris_image);
   const hasBank=!!(st?.store_payment_info);
-  const [payMethod,setPayMethod]=useState(hasQris?"qris":"bank");
+  const [payMethod,setPayMethod]=useState(hasQris?"qris":(hasBank?"bank":"cash"));
   const sub=co.subtotal||cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
   const disc=co.discount||0,tot=co.total!=null?co.total:Math.max(0,sub-disc),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
   const timeStr=co.time?` pukul ${co.time}`:"";
   const voucherLine=co.voucher?`%0AVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
-  const payLine=payMethod==="qris"?`%0A%0AMetode Bayar: QRIS (Menunggu konfirmasi admin)`:`%0A%0AMetode Bayar: Transfer Bank`;
+  const payLine=payMethod==="qris"?`%0A%0AMetode Bayar: QRIS (Menunggu konfirmasi admin)`:payMethod==="bank"?`%0A%0AMetode Bayar: Transfer Bank`:`%0A%0AMetode Bayar: Bayar di Toko (Cash saat pickup)`;
   const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}${payLine}%0A%0AStatus: Menunggu Verifikasi`;
   const waLink=`https://wa.me/${WA}?text=${waText}`;
-  const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":"[Transfer Bank]";
+  const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":payMethod==="bank"?"[Transfer Bank]":"[Cash — Bayar di Toko]";
   const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:"",payTag].filter(Boolean).join(" ");
   const go=async()=>{setSending(true);try{await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});window.open(waLink,"_blank");onSend();}catch{alert("Gagal menyimpan order.");}setSending(false);};
 
@@ -414,11 +414,12 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
       </div>
       <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
 
-    {(hasQris||hasBank)&&<div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
+    <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
       <p className="text-sm font-bold text-stone-800 mb-3">💳 Metode Pembayaran</p>
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {hasQris&&<button onClick={()=>setPayMethod("qris")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="qris"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">📱</p><p className="text-xs font-bold text-stone-800">QRIS</p><p className="text-[10px] text-stone-400">Scan & bayar</p></button>}
-        {hasBank&&<button onClick={()=>setPayMethod("bank")} className={`border-2 rounded-2xl px-3 py-3 text-left transition-all ${payMethod==="bank"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">🏦</p><p className="text-xs font-bold text-stone-800">Transfer Bank</p><p className="text-[10px] text-stone-400">Via rekening</p></button>}
+      <div className={`grid gap-2 mb-4 ${[hasQris,hasBank,true].filter(Boolean).length===3?"grid-cols-3":"grid-cols-2"}`}>
+        {hasQris&&<button onClick={()=>setPayMethod("qris")} className={`border-2 rounded-2xl px-2 py-3 text-left transition-all ${payMethod==="qris"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">📱</p><p className="text-xs font-bold text-stone-800">QRIS</p><p className="text-[10px] text-stone-400">Scan & bayar</p></button>}
+        {hasBank&&<button onClick={()=>setPayMethod("bank")} className={`border-2 rounded-2xl px-2 py-3 text-left transition-all ${payMethod==="bank"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">🏦</p><p className="text-xs font-bold text-stone-800">Transfer</p><p className="text-[10px] text-stone-400">Via rekening</p></button>}
+        <button onClick={()=>setPayMethod("cash")} className={`border-2 rounded-2xl px-2 py-3 text-left transition-all ${payMethod==="cash"?"border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm":"border-stone-200 hover:border-stone-300"}`}><p className="text-lg mb-0.5">💵</p><p className="text-xs font-bold text-stone-800">Bayar di Toko</p><p className="text-[10px] text-stone-400">Cash saat ambil</p></button>
       </div>
 
       {payMethod==="qris"&&hasQris&&<div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
@@ -442,7 +443,21 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
         <p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p>
         <div className="mt-3 bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
       </div>}
-    </div>}
+
+      {payMethod==="cash"&&<div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-2"><span className="text-xl">💵</span><p className="text-sm font-bold text-emerald-900">Bayar di Toko (Cash)</p></div>
+        <p className="text-[12px] text-emerald-800 leading-relaxed mb-3">Bayar langsung ke kasir saat ambil pesanan di toko.</p>
+        <div className="bg-white rounded-xl p-3 mb-3"><p className="text-[10px] text-stone-400">Total yang dibayar saat pickup</p><p className="text-lg font-bold text-emerald-700">{fmt(tot)}</p></div>
+        <div className="text-[11px] text-emerald-900 leading-relaxed space-y-1">
+          <p className="font-bold">Cara kerjanya:</p>
+          <p>1. Klik <span className="font-semibold">"Kirim ke WhatsApp"</span> untuk konfirmasi order</p>
+          <p>2. Admin catat pesanan & konfirmasi slot pickup</p>
+          <p>3. Datang ke toko sesuai tanggal ambil</p>
+          <p>4. Bayar cash ke kasir & ambil pesanan 🥐</p>
+        </div>
+        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-[11px] text-yellow-800"><span className="font-bold">ℹ️ Catatan:</span> Status order <span className="font-bold">Menunggu Konfirmasi</span> sampai admin verifikasi. Admin akan ubah ke <span className="font-bold">Lunas</span> setelah kamu bayar di toko.</div>
+      </div>}
+    </div>
 
     <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":payMethod==="qris"?"✅ Saya Sudah Bayar (QRIS) → Kirim ke WA":"📲 Kirim ke WhatsApp"}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
@@ -599,8 +614,8 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
 
     <Inp placeholder="Cari nama / no HP / no order..." value={q} onChange={e=>setQ(e.target.value)}/>
     <div className="flex gap-2 mb-5 overflow-x-auto pb-1">{["all","waiting","paid","process","done"].map(s=><button key={s} onClick={()=>setFs(s)} className={`text-xs px-4 py-2 rounded-full whitespace-nowrap border-2 transition-all font-medium ${s===fs?"bg-amber-800 text-white border-amber-800":"border-stone-200 text-stone-500 hover:border-stone-300"}`}>{s==="all"?"Semua":sL[s]}{s==="waiting"&&newCount>0?` (${newCount})`:""}</button>)}</div>
-    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>{const isQris=(o.note||"").includes("[QRIS");const isHampers=(o.note||"").includes("[HAMPERS");const isCustomH=(o.note||"").includes("Custom Request");const setPrice=async()=>{const input=prompt(`Set harga final untuk ${o.order_number}\n${o.customer_name} · ${(o.items||[])[0]?.qty||0} box\n\nMasukkan total final (Rp):`,String(o.total||0));if(input===null)return;const val=parseInt(String(input).replace(/\D/g,""))||0;if(val<=0)return alert("Harga tidak valid");setBusy(o.order_number);try{await dbUO(o.id,{total:val});await rf();}catch{alert("Gagal update harga");}setBusy("");};return(<div key={o.id} className={`bg-white rounded-2xl p-5 mb-3 shadow-sm border ${isHampers?"border-purple-200":"border-stone-100"}`}>
-      <div className="flex items-center justify-between mb-3 gap-2"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><div className="flex items-center gap-1.5 flex-wrap">{isHampers&&<span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${isCustomH?"bg-pink-100 text-pink-800 border-pink-300":"bg-purple-100 text-purple-800 border-purple-300"}`}>🎁 {isCustomH?"CUSTOM":"HAMPERS"}</span>}{isQris&&o.status==="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">📱 QRIS</span>}{isQris&&o.status!=="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-stone-100 text-stone-500">📱 QRIS</span>}<Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div></div>
+    {ls.length===0?<div className="text-center py-12 text-stone-300"><p className="text-4xl mb-3">📋</p><p className="text-stone-400">Belum ada pesanan</p></div>:ls.map(o=>{const isQris=(o.note||"").includes("[QRIS");const isCash=(o.note||"").includes("[Cash");const isHampers=(o.note||"").includes("[HAMPERS");const isCustomH=(o.note||"").includes("Custom Request");const setPrice=async()=>{const input=prompt(`Set harga final untuk ${o.order_number}\n${o.customer_name} · ${(o.items||[])[0]?.qty||0} box\n\nMasukkan total final (Rp):`,String(o.total||0));if(input===null)return;const val=parseInt(String(input).replace(/\D/g,""))||0;if(val<=0)return alert("Harga tidak valid");setBusy(o.order_number);try{await dbUO(o.id,{total:val});await rf();}catch{alert("Gagal update harga");}setBusy("");};return(<div key={o.id} className={`bg-white rounded-2xl p-5 mb-3 shadow-sm border ${isHampers?"border-purple-200":"border-stone-100"}`}>
+      <div className="flex items-center justify-between mb-3 gap-2"><span className="font-bold text-sm text-stone-800">{o.order_number}</span><div className="flex items-center gap-1.5 flex-wrap">{isHampers&&<span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${isCustomH?"bg-pink-100 text-pink-800 border-pink-300":"bg-purple-100 text-purple-800 border-purple-300"}`}>🎁 {isCustomH?"CUSTOM":"HAMPERS"}</span>}{isQris&&o.status==="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">📱 QRIS</span>}{isQris&&o.status!=="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-stone-100 text-stone-500">📱 QRIS</span>}{isCash&&o.status==="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">💵 CASH</span>}{isCash&&o.status!=="waiting"&&<span className="text-[10px] font-bold px-2 py-1 rounded-full bg-stone-100 text-stone-500">💵 CASH</span>}<Badge variant={sV[o.status]}>{sL[o.status]}</Badge></div></div>
       <p className="text-sm text-stone-600">👤 {o.customer_name} · 📱 {o.customer_phone}</p>
       <div className="mt-2 text-xs text-stone-400">{(o.items||[]).map((it,i)=><p key={i}>{it.name} ×{it.qty}{it.size?` (${it.size})`:"" }{it.flavor?` — ${it.flavor}`:""}</p>)}</div>
       {o.note&&<p className="text-xs text-stone-400 mt-1">📝 {o.note}</p>}
@@ -608,7 +623,7 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
       <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}{isHampers&&o.status==="waiting"&&o.total===0?" (belum di-set)":""}</span></div>
       <div className="flex gap-2 mt-4 flex-wrap">
         {isHampers&&["waiting","paid","process"].includes(o.status)&&<Btn onClick={setPrice} variant="secondary" className="text-xs" disabled={busy===o.order_number}>✏️ Set Harga Final</Btn>}
-        {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":(isQris?"💰 Konfirmasi Lunas (QRIS)":"💰 Tandai Bayar")):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
+        {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":isQris?"💰 Konfirmasi Lunas (QRIS)":isCash?"💵 Lunas (Cash)":"💰 Tandai Bayar"):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
         {o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}
       </div>
     </div>);})}
@@ -842,27 +857,47 @@ const ASchedule = ({products,settings:st,onRefresh:rf}) => {
 };
 
 const APurchases = ({products,settings:st,onRefresh:rf}) => {
-  const [fm,setFm]=useState({date:todayStr(),name:"",qty:"1",price:"",productId:""});const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
+  const blank=()=>({_k:genId(),name:"",qty:"1",price:"",productId:""});
+  const [date,setDate]=useState(todayStr());
+  const [rows,setRows]=useState([blank()]);
+  const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
   const purchases=readArr(st?.purchases_json);
   const stockMap=readStockMap(st?.product_stock_json);
   const today=purchases.filter(p=>isSameDay(p.date));const week=purchases.filter(p=>inWeek(p.date));const month=purchases.filter(p=>inMonth(p.date));
   const todayT=today.reduce((s,p)=>s+(p.total||0),0);const weekT=week.reduce((s,p)=>s+(p.total||0),0);const monthT=month.reduce((s,p)=>s+(p.total||0),0);
-  const save=async()=>{if(!fm.name||!fm.price||busy)return;setBusy(true);const qty=Math.max(1,parseInt(fm.qty)||1);const price=Math.max(0,parseInt(fm.price)||0);const entry={id:genId(),date:fm.date,name:fm.name,qty,price,total:qty*price,productId:fm.productId||null};const next=[entry,...purchases];try{if(fm.productId){const ns={...stockMap};const cur=stockOf(ns,fm.productId);ns[String(fm.productId)]=(cur===Infinity?0:cur)+qty;await dbUS("product_stock_json",JSON.stringify(ns));}await dbUS("purchases_json",JSON.stringify(next));setFm({date:todayStr(),name:"",qty:"1",price:"",productId:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
+  const updRow=(k,field,val)=>setRows(rs=>rs.map(r=>r._k===k?{...r,[field]:val}:r));
+  const addRow=()=>setRows(rs=>[...rs,blank()]);
+  const rmRow=(k)=>setRows(rs=>rs.length<=1?[blank()]:rs.filter(r=>r._k!==k));
+  const grandTotal=rows.reduce((s,r)=>s+(Math.max(1,parseInt(r.qty)||1)*(Math.max(0,parseInt(r.price)||0))),0);
+  const resetForm=()=>{setDate(todayStr());setRows([blank()]);setShow(false);};
+  const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null};});try{const ns={...stockMap};let stockChanged=false;valid.forEach((r,i)=>{if(r.productId){const cur=stockOf(ns,r.productId);ns[String(r.productId)]=(cur===Infinity?0:cur)+entries[i].qty;stockChanged=true;}});if(stockChanged)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
   const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
   return(<div>
-    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Centang "Tambah ke Stok Produk" agar stok naik otomatis.</div>
+    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Bisa input banyak barang sekaligus. Pilih "Tambah ke Stok Produk" agar stok naik otomatis.</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-orange-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-orange-600">{fmt(monthT)}</p></div></div>
     {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pembelian Baru</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
       <p className="text-sm font-bold text-stone-800 mb-3">📥 Pembelian Baru</p>
-      <Inp label="Tanggal" type="date" value={fm.date} onChange={e=>setFm(f=>({...f,date:e.target.value}))}/>
-      <Inp label="Nama Barang" value={fm.name} onChange={e=>setFm(f=>({...f,name:e.target.value}))} placeholder="Tepung, gula, donut isi 20, dll"/>
-      <div className="grid grid-cols-2 gap-2">
-        <Inp label="Qty" type="number" value={fm.qty} onChange={e=>setFm(f=>({...f,qty:e.target.value}))}/>
-        <Inp label="Harga Satuan (Rp)" type="number" value={fm.price} onChange={e=>setFm(f=>({...f,price:e.target.value}))}/>
+      <Inp label="Tanggal" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+      <div className="space-y-3 mb-3">
+        {rows.map((r,idx)=>{const rowTotal=(Math.max(1,parseInt(r.qty)||1))*(Math.max(0,parseInt(r.price)||0));return(
+          <div key={r._k} className="bg-stone-50 border border-stone-200 rounded-2xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-stone-500">Barang #{idx+1}</span>
+              {rows.length>1&&<button onClick={()=>rmRow(r._k)} className="text-red-500 hover:bg-red-50 rounded-lg w-7 h-7 text-sm">🗑️</button>}
+            </div>
+            <input value={r.name} onChange={e=>updRow(r._k,"name",e.target.value)} placeholder="Nama barang (tepung, gula, dll)" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300"/>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <input type="number" inputMode="numeric" min="1" value={r.qty} onChange={e=>updRow(r._k,"qty",e.target.value)} placeholder="Qty" className="border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/>
+              <input type="number" inputMode="numeric" min="0" value={r.price} onChange={e=>updRow(r._k,"price",e.target.value)} placeholder="Harga satuan (Rp)" className="border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/>
+            </div>
+            <select value={r.productId} onChange={e=>updRow(r._k,"productId",e.target.value)} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-1"><option value="">-- Tidak terhubung produk --</option>{products.map(p=>(<option key={p.id} value={p.id}>+ Stok: {p.name}</option>))}</select>
+            {rowTotal>0&&<p className="text-[11px] text-stone-500 mt-1">Subtotal: <span className="font-bold text-amber-800">{fmt(rowTotal)}</span></p>}
+          </div>
+        );})}
       </div>
-      <div className="mb-3"><label className="block text-sm font-medium text-stone-600 mb-1.5">Tambah ke Stok Produk <span className="text-stone-400 font-normal text-xs">(opsional)</span></label><select value={fm.productId} onChange={e=>setFm(f=>({...f,productId:e.target.value}))} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50"><option value="">-- Tidak terhubung produk --</option>{products.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}</select><p className="text-xs text-stone-400 mt-1">Jika dipilih, stok produk akan bertambah otomatis</p></div>
-      {fm.qty&&fm.price&&<p className="text-sm text-stone-600 mb-3">Total: <span className="font-bold text-amber-800">{fmt((parseInt(fm.qty)||1)*(parseInt(fm.price)||0))}</span></p>}
-      <div className="flex gap-2"><Btn onClick={save} full disabled={busy}>{busy?"Menyimpan...":"💾 Simpan"}</Btn><Btn onClick={()=>setShow(false)} variant="ghost">Batal</Btn></div>
+      <button onClick={addRow} className="w-full border-2 border-dashed border-amber-300 text-amber-700 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 transition mb-3">+ Tambah Barang</button>
+      {grandTotal>0&&<div className="flex justify-between items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3"><span className="text-sm font-semibold text-stone-700">Grand Total</span><span className="text-lg font-bold text-amber-800">{fmt(grandTotal)}</span></div>}
+      <div className="flex gap-2"><Btn onClick={save} full disabled={busy}>{busy?"Menyimpan...":`💾 Simpan ${rows.filter(r=>r.name.trim()&&r.price).length||""} Barang`}</Btn><Btn onClick={resetForm} variant="ghost">Batal</Btn></div>
     </div>}
     {purchases.length===0?<div className="text-center py-10 text-stone-300"><p className="text-4xl mb-2">📥</p><p className="text-sm text-stone-400">Belum ada pembelian</p></div>:purchases.slice(0,50).map(p=>(<div key={p.id} className="bg-white rounded-2xl p-4 mb-2 border border-stone-100"><div className="flex justify-between items-start gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{p.date} · {p.qty}× @ {fmt(p.price)}{p.productId&&<span className="ml-2 text-emerald-600">+ stok</span>}</p></div><div className="flex items-center gap-2"><p className="font-bold text-orange-600 text-sm whitespace-nowrap">{fmt(p.total)}</p><button onClick={()=>del(p.id)} className="text-red-400 hover:bg-red-50 w-7 h-7 rounded-lg">🗑️</button></div></div></div>))}
   </div>);
@@ -953,7 +988,7 @@ const AInventory = ({products,settings:st,onRefresh:rf}) => {
   const low=list.filter(p=>p._s!==Infinity&&p._s>0&&p._s<=5).length;
   const ok=list.filter(p=>p._s===Infinity||p._s>5).length;
   return(<div>
-    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-[11px] text-blue-800 leading-relaxed">📦 <span className="font-semibold">Kelola stok produk</span> — tambah/kurangi dengan tombol +/−, atau kosongkan untuk stok tidak terbatas (∞). Stok otomatis berkurang setiap pesanan.</div>
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-[11px] text-blue-800 leading-relaxed">📦 <span className="font-semibold">Kelola stok produk</span> — ketik langsung di kotak angka atau pakai tombol +/−. Klik ∞ untuk reset jadi tak terbatas. Stok otomatis berkurang setiap pesanan.</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">✅ Aman</p><p className="text-lg font-bold text-emerald-600">{ok}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">⚠️ Menipis</p><p className="text-lg font-bold text-orange-600">{low}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">❌ Habis</p><p className="text-lg font-bold text-red-600">{out}</p></div></div>
     <Inp placeholder="🔍 Cari produk..." value={q} onChange={e=>setQ(e.target.value)}/>
     {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:list.map(p=>{const s=p._s;const cur=stockMap[String(p.id)];const bc=s===0?"border-red-200 bg-red-50/30":s!==Infinity&&s<=5?"border-orange-200 bg-orange-50/30":"border-stone-100 bg-white";return(<div key={p.id} className={`rounded-2xl p-3 mb-2 border ${bc}`}>
@@ -961,7 +996,7 @@ const AInventory = ({products,settings:st,onRefresh:rf}) => {
         <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{fmt(p.price)}</p></div>
         <div className="flex items-center gap-1.5">
           <button onClick={()=>update(p.id,s===Infinity?0:Math.max(0,s-1))} disabled={busy===String(p.id)||s===0} className="w-8 h-8 rounded-full bg-stone-100 text-stone-700 text-sm font-bold disabled:opacity-30">−</button>
-          <div className={`min-w-[48px] text-center font-bold text-sm ${s===0?"text-red-600":s===Infinity?"text-stone-400":s<=5?"text-orange-600":"text-emerald-700"}`}>{s===Infinity?"∞":s}</div>
+          <input key={`inv-${p.id}-${s===Infinity?"inf":s}`} type="number" inputMode="numeric" min="0" defaultValue={s===Infinity?"":s} onBlur={e=>{const t=e.target.value.trim();if(t==="")update(p.id,null);else{const n=parseInt(t);if(!isNaN(n))update(p.id,Math.max(0,n));}}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="∞" disabled={busy===String(p.id)} className={`w-16 text-center font-bold text-sm border rounded-lg py-1 px-1 focus:outline-none focus:ring-2 focus:ring-amber-300 ${s===0?"text-red-600 border-red-200 bg-red-50/50":s===Infinity?"text-stone-400 border-stone-200":s<=5?"text-orange-600 border-orange-200 bg-orange-50/50":"text-emerald-700 border-stone-200"}`}/>
           <button onClick={()=>update(p.id,s===Infinity?1:s+1)} disabled={busy===String(p.id)} className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 text-sm font-bold disabled:opacity-30">+</button>
           {cur!==undefined&&<button onClick={()=>update(p.id,null)} title="Reset ke Unlimited" className="text-[10px] text-stone-400 hover:text-stone-700 ml-1">∞</button>}
         </div>
