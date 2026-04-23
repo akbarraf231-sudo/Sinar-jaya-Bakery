@@ -435,10 +435,16 @@ const Preview = ({cart,checkout:co,settings:st,stockMap,onStockChange,onSend,onB
     for(const pid in required){const avail=stockOf(stockMap||{},pid);if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);return;}}
     setSending(true);
     try{
+      let freshStock=stockMap||{};
+      try{const s=await sb("/rest/v1/settings?key=eq.product_stock_json&select=value",H());if(Array.isArray(s)&&s[0]?.value)freshStock=readStockMap(s[0].value);}catch(e){console.error("Fresh stock fetch failed:",e);}
+      for(const pid in required){const avail=freshStock[String(pid)]===undefined?Infinity:freshStock[String(pid)];if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok berubah! Tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);setSending(false);if(onStockChange)await onStockChange();return;}}
+      const newStock={...freshStock};let changed=false;
+      Object.keys(required).forEach(pid=>{const cur=newStock[pid];if(cur!==undefined&&cur!==null){newStock[pid]=Math.max(0,cur-required[pid]);changed=true;}});
+      if(changed){try{await dbUS("product_stock_json",JSON.stringify(newStock));}catch(e){console.error("Stock update failed:",e);alert("❌ Gagal update stok. Coba lagi.");setSending(false);return;}}
       await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,qtyUnit:parseInt(i.qtyUnit)||1,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||"",bank_screenshot:bankScreenshot||""});
-      const newStock={...(stockMap||{})};let changed=false;Object.keys(required).forEach(pid=>{if(newStock[pid]!==undefined){newStock[pid]=Math.max(0,newStock[pid]-required[pid]);changed=true;}});if(changed){try{await dbUS("product_stock_json",JSON.stringify(newStock));if(onStockChange)await onStockChange();}catch{}}
+      if(onStockChange)await onStockChange();
       window.open(waLink,"_blank");onSend();
-    }catch{alert("Gagal menyimpan order.");}
+    }catch(e){console.error("Order save failed:",e);alert("Gagal menyimpan order: "+(e?.message||"Unknown error"));}
     setSending(false);
   };
 
@@ -668,8 +674,8 @@ const AOrders = ({orders,onRefresh:rf,newCount}) => {
       <div className="flex items-center justify-between mt-3 text-xs text-stone-400"><div><p>📝 Order: {o.order_date}</p><p>📅 Ambil: {o.pickup_date}</p></div><span className="font-bold text-amber-800 text-sm">{fmt(o.total)}{isHampers&&o.status==="waiting"&&o.total===0?" (belum di-set)":""}</span></div>
       <div className="flex gap-2 mt-4 flex-wrap">
         {isHampers&&["waiting","paid","process"].includes(o.status)&&<Btn onClick={setPrice} variant="secondary" className="text-xs" disabled={busy===o.order_number}>✏️ Set Harga Final</Btn>}
-        {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch{}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":isQris?"💰 Konfirmasi Lunas (QRIS)":isCash?"💵 Lunas (Cash)":"💰 Tandai Bayar"):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
-        {o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch{}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}
+        {sF[o.status]&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbUO(o.id,{status:sF[o.status]});await rf();}catch(e){console.error("Status update failed:",e);alert("Gagal update status");}setBusy("")}} variant="primary" className="text-xs flex-1" disabled={busy===o.order_number}>{o.status==="waiting"?(isHampers?"💰 DP Diterima":isQris?"💰 Konfirmasi Lunas (QRIS)":isCash?"💵 Lunas (Cash)":"💰 Tandai Bayar"):o.status==="paid"?"⚙️ Proses":isHampers?"✅ Lunas & Kirim":"✅ Selesai"}</Btn>}
+        {o.status==="done"&&<Btn onClick={async()=>{setBusy(o.order_number);try{await dbXO(o.id);await rf();}catch(e){console.error("Archive failed:",e);alert("Gagal arsip");}setBusy("")}} variant="danger" className="text-xs" disabled={busy===o.order_number}>🗑️</Btn>}
       </div>
     </div>);})}
   </div>);
@@ -707,7 +713,7 @@ const AMenu = ({products,settings:st,onRefresh:rf}) => {
   return(<div>
     <Btn onClick={()=>{setFm({name:"",price:"",category:"classic",subcategory:"",label:"",description:"",color:"#D4A574",image_url:"",flavors:[],sizes:[],discount:0,max_qty:0,stock:""});setEd("new");}} full className="mb-5">+ Tambah Produk</Btn>
     {products.map(p=>{const s=stockOf(stockMap,p.id);const stockLabel=s===Infinity?"∞":s<=0?"Habis":s;const stockCls=s===Infinity?"text-stone-400":s<=0?"text-red-600 bg-red-50":s<=5?"text-orange-600 bg-orange-50":"text-emerald-600 bg-emerald-50";return(<div key={p.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-stone-100 ${p.is_sold_out||s<=0?"opacity-60":""}`}><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-3 min-w-0 flex-1"><div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"><Img name={p.name} color={p.color} img={firstImg(p.image_url)} size="sm"/></div><div className="min-w-0 flex-1"><p className="font-bold text-sm text-stone-800 truncate">{p.name}{p.is_sold_out&&<span className="text-red-500 text-xs font-normal ml-2">· Manual Habis</span>}{p.discount>0&&<span className="text-emerald-600 text-xs font-normal ml-2">-{p.discount}%</span>}</p><div className="flex items-center gap-1.5 flex-wrap"><p className="text-xs text-stone-400">{p.category==="special"?"Special":p.category==="savory"?"Savory":"Daily"} · {fmt(p.price)}</p><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stockCls}`}>📦 {stockLabel}</span></div></div></div>
-      <div className="flex gap-1 flex-shrink-0"><button onClick={async()=>{try{await dbSO(p.id,!p.is_sold_out);await rf();}catch{}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button><button onClick={()=>{const fl=jp(p.flavors,[]),sz=jp(p.sizes,[]);const cur=stockMap[String(p.id)];setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz.map(s=>({name:s.name||"",price:s.price!=null?s.price:(s.add!=null?s.add:0),qtyUnit:Math.max(1,parseInt(s.qtyUnit)||1)})):[],discount:p.discount||0,max_qty:p.max_qty||0,stock:cur===undefined?"":String(cur)});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button><button onClick={async()=>{try{await dbDP(p.id);await rf();}catch{}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button></div></div></div>);})}
+      <div className="flex gap-1 flex-shrink-0"><button onClick={async()=>{try{await dbSO(p.id,!p.is_sold_out);await rf();}catch(e){console.error("Toggle sold-out failed:",e);alert("Gagal toggle status");}}} className={`text-xs px-2 py-1 rounded-lg transition ${p.is_sold_out?"text-emerald-600 hover:bg-emerald-50":"text-orange-500 hover:bg-orange-50"}`}>{p.is_sold_out?"✅":"⛔"}</button><button onClick={()=>{const fl=jp(p.flavors,[]),sz=jp(p.sizes,[]);const cur=stockMap[String(p.id)];setFm({name:p.name,price:String(p.price),category:p.category,subcategory:"",label:p.label||"",description:p.description||"",color:p.color||"#D4A574",image_url:p.image_url||"",flavors:Array.isArray(fl)?fl:[],sizes:Array.isArray(sz)?sz.map(s=>({name:s.name||"",price:s.price!=null?s.price:(s.add!=null?s.add:0),qtyUnit:Math.max(1,parseInt(s.qtyUnit)||1)})):[],discount:p.discount||0,max_qty:p.max_qty||0,stock:cur===undefined?"":String(cur)});setEd(p.id);}} className="text-xs text-amber-700 px-2 py-1 hover:bg-amber-50 rounded-lg transition">✏️</button><button onClick={async()=>{if(!confirm("Hapus produk ini?"))return;try{await dbDP(p.id);await rf();}catch(e){console.error("Delete product failed:",e);alert("Gagal hapus produk");}}} className="text-xs text-red-400 px-2 py-1 hover:bg-red-50 rounded-lg transition">🗑️</button></div></div></div>);})}
   </div>);
 };
 
@@ -917,7 +923,7 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
   const grandTotal=rows.reduce((s,r)=>s+(Math.max(1,parseInt(r.qty)||1)*(Math.max(0,parseInt(r.price)||0))),0);
   const resetForm=()=>{setDate(todayStr());setRows([blank()]);setShow(false);};
   const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null};});try{const ns={...stockMap};const stockUpdates=[];valid.forEach((r,i)=>{if(r.productId){const prodId=String(r.productId);const cur=ns[prodId];const base=(cur===undefined||cur===null)?0:cur;ns[prodId]=base+entries[i].qty;const prod=products.find(p=>String(p.id)===prodId);if(prod)stockUpdates.push(`${prod.name}: +${entries[i].qty} pcs (total: ${ns[prodId]} pcs)`);}});if(stockUpdates.length>0)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();if(stockUpdates.length>0)alert(`✅ Pembelian tersimpan!\n\n📦 Stok Produk Diperbarui:\n${stockUpdates.join("\n")}`);else alert("✅ Pembelian tersimpan!");}catch(err){alert("Gagal simpan pembelian: "+(err?.message||""));}setBusy(false);};
-  const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
+  const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch(e){console.error("Delete purchase failed:",e);alert("Gagal hapus pembelian");}};
   return(<div>
     <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Bisa input banyak barang sekaligus. Pilih "Tambah ke Stok Produk" agar stok naik otomatis.</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-orange-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-orange-600">{fmt(monthT)}</p></div></div>
@@ -958,7 +964,7 @@ const AExpenses = ({settings:st,onRefresh:rf}) => {
   const byCat={};month.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+(e.amount||0);});
   const catList=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   const save=async()=>{if(!fm.description||!fm.amount||busy)return;setBusy(true);const entry={id:genId(),date:fm.date,category:fm.category,description:fm.description,amount:Math.max(0,parseInt(fm.amount)||0)};const next=[entry,...expenses];try{await dbUS("expenses_json",JSON.stringify(next));setFm({date:todayStr(),category:"Operasional",description:"",amount:""});setShow(false);if(rf)await rf();}catch{alert("Gagal simpan pengeluaran");}setBusy(false);};
-  const del=async(id)=>{if(!confirm("Hapus pengeluaran ini?"))return;const next=expenses.filter(e=>e.id!==id);try{await dbUS("expenses_json",JSON.stringify(next));if(rf)await rf();}catch{}};
+  const del=async(id)=>{if(!confirm("Hapus pengeluaran ini?"))return;const next=expenses.filter(e=>e.id!==id);try{await dbUS("expenses_json",JSON.stringify(next));if(rf)await rf();}catch(e){console.error("Delete expense failed:",e);alert("Gagal hapus pengeluaran");}};
   return(<div>
     <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4 text-[11px] text-red-800 leading-relaxed">💸 <span className="font-semibold">Biaya operasional yang BUKAN untuk stok</span> — listrik, gas, air, gaji karyawan, transport, dll. Catat biar laba real.</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-red-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-red-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-red-600">{fmt(monthT)}</p></div></div>
@@ -1028,7 +1034,7 @@ const ARingkasan = ({products,orders,settings:st,onGo}) => {
 const AInventory = ({products,settings:st,onRefresh:rf}) => {
   const [busy,setBusy]=useState("");const [q,setQ]=useState("");
   const stockMap=readStockMap(st?.product_stock_json);
-  const update=async(pid,val)=>{if(busy)return;setBusy(String(pid));const ns={...stockMap};if(val===null||val===""||isNaN(parseInt(val)))delete ns[String(pid)];else ns[String(pid)]=Math.max(0,parseInt(val));try{await dbUS("product_stock_json",JSON.stringify(ns));if(rf)await rf();}catch{alert("Gagal update stok");}setBusy("");};
+  const update=async(pid,val)=>{if(busy)return;setBusy(String(pid));const ns={...stockMap};if(val===null||val===""){delete ns[String(pid)];}else{const n=parseInt(val);if(isNaN(n)){setBusy("");return;}ns[String(pid)]=Math.max(0,n);}try{await dbUS("product_stock_json",JSON.stringify(ns));if(rf)await rf();}catch(e){console.error("Stock update failed:",e);alert("Gagal update stok");}setBusy("");};
   const list=(products||[]).map(p=>({...p,_s:stockOf(stockMap,p.id)})).filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>{const sa=a._s===Infinity?9999:a._s;const sb=b._s===Infinity?9999:b._s;return sa-sb;});
   const out=list.filter(p=>p._s===0).length;
   const low=list.filter(p=>p._s!==Infinity&&p._s>0&&p._s<=5).length;
@@ -1116,24 +1122,34 @@ const Admin = ({onLogout}) => {
   const prevWaitingRef=useRef(null);
   const notifAudio=useRef(null);
   const firstLoadRef=useRef(true);
+  const inFlightRef=useRef(false);
+  const mountedRef=useRef(true);
 
   const playBeep=()=>{try{const a=notifAudio.current;if(!a)return;a.currentTime=0;a.play().catch(()=>{});setTimeout(()=>{try{a.currentTime=0;a.play().catch(()=>{});}catch{}},400);}catch{}};
   const dismissToast=(id)=>setToasts(t=>t.filter(x=>x.id!==id));
   const pushToast=(order)=>{const id=`${order.id||order.order_number}_${Date.now()}`;setToasts(t=>[{id,order},...t].slice(0,5));setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),10000);};
 
-  const load=async()=>{try{const [p,o,ao,c,s]=await Promise.all([dbP(),dbO(),dbAO(),dbCD(),dbS()]);setProducts(p||[]);const newOrders=o||[];setAllOrders(ao||[]);setCd(c||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSettings(sm);
-    const waiting=newOrders.filter(x=>x.status==="waiting");
-    const currentNums=new Set(waiting.map(x=>x.order_number));
-    if(!firstLoadRef.current&&prevWaitingRef.current){
-      const added=waiting.filter(x=>!prevWaitingRef.current.has(x.order_number));
-      if(added.length>0){playBeep();added.forEach(pushToast);setNewCount(n=>n+added.length);}
-    }
-    prevWaitingRef.current=currentNums;
-    firstLoadRef.current=false;
-    setOrders(newOrders);
-  }catch(e){console.error(e);}setLoading(false);};
+  const load=async()=>{
+    if(inFlightRef.current)return;
+    inFlightRef.current=true;
+    try{
+      const [p,o,ao,c,s]=await Promise.all([dbP(),dbO(),dbAO(),dbCD(),dbS()]);
+      if(!mountedRef.current)return;
+      setProducts(p||[]);const newOrders=o||[];setAllOrders(ao||[]);setCd(c||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSettings(sm);
+      const waiting=newOrders.filter(x=>x.status==="waiting");
+      const currentNums=new Set(waiting.map(x=>x.order_number));
+      if(!firstLoadRef.current&&prevWaitingRef.current){
+        const added=waiting.filter(x=>!prevWaitingRef.current.has(x.order_number));
+        if(added.length>0){playBeep();added.forEach(pushToast);setNewCount(n=>n+added.length);}
+      }
+      prevWaitingRef.current=currentNums;
+      firstLoadRef.current=false;
+      setOrders(newOrders);
+    }catch(e){console.error("Admin load failed:",e);}
+    finally{inFlightRef.current=false;if(mountedRef.current)setLoading(false);}
+  };
 
-  useEffect(()=>{load();const iv=setInterval(load,15000);return()=>clearInterval(iv);},[]);
+  useEffect(()=>{mountedRef.current=true;load();const iv=setInterval(load,15000);return()=>{mountedRef.current=false;clearInterval(iv);};},[]);
 
   const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"pembukuan",icon:"📒",label:"Pembukuan"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
