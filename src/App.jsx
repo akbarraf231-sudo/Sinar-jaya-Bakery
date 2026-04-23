@@ -409,6 +409,7 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
 
 const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
+  const [bankScreenshot,setBankScreenshot]=useState(null);
   const hasQris=!!(st?.qris_image);
   const hasBank=!!(st?.store_payment_info);
   const [payMethod,setPayMethod]=useState(hasQris?"qris":(hasBank?"bank":"cash"));
@@ -421,12 +422,20 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const waLink=`https://wa.me/${WA}?text=${encodeURIComponent(waText)}`;
   const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":payMethod==="bank"?"[Transfer Bank]":"[Cash — Bayar di Toko]";
   const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:"",payTag].filter(Boolean).join(" ");
+  const handleBankScreenshot=(e)=>{
+    const file=e.target.files?.[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>setBankScreenshot(ev.target?.result);
+    reader.readAsDataURL(file);
+  };
   const go=async()=>{
+    if(payMethod==="bank"&&!bankScreenshot){alert("❌ Harap upload screenshot bukti transfer");return;}
     const required={};cart.forEach(i=>{const u=parseInt(i.qtyUnit)||1;required[String(i.id)]=(required[String(i.id)]||0)+i.qty*u;});
     for(const pid in required){const avail=stockOf(stockMap||{},pid);if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);return;}}
     setSending(true);
     try{
-      await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,qtyUnit:parseInt(i.qtyUnit)||1,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||""});
+      await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,qtyUnit:parseInt(i.qtyUnit)||1,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||"",bank_screenshot:bankScreenshot||""});
       const newStock={...(stockMap||{})};let changed=false;Object.keys(required).forEach(pid=>{if(newStock[pid]!==undefined){newStock[pid]=Math.max(0,newStock[pid]-required[pid]);changed=true;}});if(changed){try{await dbUS("product_stock_json",JSON.stringify(newStock));if(onStockChange)await onStockChange();}catch{}}
       window.open(waLink,"_blank");onSend();
     }catch{alert("Gagal menyimpan order.");}
@@ -469,10 +478,11 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
         <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-[11px] text-yellow-800"><span className="font-bold">ℹ️ Penting:</span> Setelah klik "Sudah Bayar", order akan berstatus <span className="font-bold">Menunggu Konfirmasi</span>. Admin akan cek pembayaran & ubah ke status <span className="font-bold">Lunas</span>.</div>
       </div>}
 
-      {payMethod==="bank"&&hasBank&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
-        <p className="text-[11px] text-stone-400 mb-1">Info Rekening / Pembayaran</p>
-        <p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p>
-        <div className="mt-3 bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+      {payMethod==="bank"&&hasBank&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-4">
+        <div><p className="text-[11px] text-stone-400 mb-1">Info Rekening / Pembayaran</p>
+        <p className="text-sm text-stone-700 whitespace-pre-line">{st.store_payment_info}</p></div>
+        <div className="bg-white rounded-xl p-3 flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] text-stone-400">Nominal Transfer</p><p className="text-lg font-bold text-amber-800">{fmt(tot)}</p></div><button onClick={copyAmount} className="text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition whitespace-nowrap">📋 Salin</button></div>
+        <div className="border-t border-stone-200 pt-3"><p className="text-[11px] text-stone-600 font-semibold mb-2">📸 Upload Bukti Transfer</p><label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${bankScreenshot?"border-emerald-300 bg-emerald-50":"border-stone-300 hover:border-stone-400"}`}><input type="file" accept="image/*" onChange={handleBankScreenshot} className="hidden"/><span className="text-sm font-semibold">{bankScreenshot?"✅ Sudah upload":"📁 Pilih foto"}</span></label>{bankScreenshot&&<div className="mt-2 relative"><img src={bankScreenshot} alt="Preview" className="w-full rounded-xl max-h-40 object-cover"/><button onClick={()=>setBankScreenshot(null)} className="absolute top-2 right-2 text-sm font-bold bg-red-500 text-white px-2 py-1 rounded-lg">✕ Hapus</button></div>}</div>
       </div>}
 
       {payMethod==="cash"&&<div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
