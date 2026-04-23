@@ -1,8 +1,8 @@
 
 import { useState, useReducer, useRef, useCallback, useEffect } from "react";
 
-const SB_URL = "https://epydslvgxgucjemzfuxn.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVweWRzbHZneGd1Y2plbXpmdXhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjE4NjQsImV4cCI6MjA5MTc5Nzg2NH0.0xFvwqwixO1hTBWVIugGmxOObRAaV31CP0MOcBBbDVA";
+const SB_URL = "https://pjsdsfnufetaxpzqpmot.supabase.co";
+const SB_KEY = "sb_publishable_zfIqvqkWWyHFFpWtPcd6gQ_6jPs04Jl";
 const WA = "6285801299758";
 let tk = null;
 
