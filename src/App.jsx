@@ -407,7 +407,7 @@ const Checkout = ({cart,settings:st,orders,closedDates:cd,onSubmit,onBack,onHome
     <Btn onClick={go} full disabled={sub}>{sub?"Memproses...":"Lihat Preview →"}</Btn></div></Shell>);
 };
 
-const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
+const Preview = ({cart,checkout:co,settings:st,stockMap,onStockChange,onSend,onBack,onHome}) => {
   const [sending,setSending]=useState(false);
   const [bankScreenshot,setBankScreenshot]=useState(null);
   const hasQris=!!(st?.qris_image);
@@ -915,7 +915,7 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
   const rmRow=(k)=>setRows(rs=>rs.length<=1?[blank()]:rs.filter(r=>r._k!==k));
   const grandTotal=rows.reduce((s,r)=>s+(Math.max(1,parseInt(r.qty)||1)*(Math.max(0,parseInt(r.price)||0))),0);
   const resetForm=()=>{setDate(todayStr());setRows([blank()]);setShow(false);};
-  const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null};});try{const ns={...stockMap};let stockChanged=false;valid.forEach((r,i)=>{if(r.productId){const cur=stockOf(ns,r.productId);ns[String(r.productId)]=(cur===Infinity?0:cur)+entries[i].qty;stockChanged=true;}});if(stockChanged)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
+  const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null};});try{const ns={...stockMap};const stockUpdates=[];valid.forEach((r,i)=>{if(r.productId){const prodId=String(r.productId);const cur=ns[prodId];const base=(cur===undefined||cur===null)?0:cur;ns[prodId]=base+entries[i].qty;const prod=products.find(p=>String(p.id)===prodId);if(prod)stockUpdates.push(`${prod.name}: +${entries[i].qty} pcs (total: ${ns[prodId]} pcs)`);}});if(stockUpdates.length>0)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();if(stockUpdates.length>0)alert(`✅ Pembelian tersimpan!\n\n📦 Stok Produk Diperbarui:\n${stockUpdates.join("\n")}`);else alert("✅ Pembelian tersimpan!");}catch(err){alert("Gagal simpan pembelian: "+(err?.message||""));}setBusy(false);};
   const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
   return(<div>
     <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Bisa input banyak barang sekaligus. Pilih "Tambah ke Stok Produk" agar stok naik otomatis.</div>
@@ -1027,38 +1027,26 @@ const ARingkasan = ({products,orders,settings:st,onGo}) => {
 const AInventory = ({products,settings:st,onRefresh:rf}) => {
   const [busy,setBusy]=useState("");const [q,setQ]=useState("");
   const stockMap=readStockMap(st?.product_stock_json);
-  const perBoxMap=readStockMap(st?.product_per_box_json||"{}");
-  const [expand,setExpand]=useState({});
-  const update=async(pid,val,pb)=>{if(busy)return;setBusy(String(pid));const ns={...stockMap};if(val===null||val===""||isNaN(parseInt(val)))delete ns[String(pid)];else ns[String(pid)]=Math.max(0,parseInt(val));const pbMap={...perBoxMap};if(pb&&pb!=="1")pbMap[String(pid)]=Math.max(1,parseInt(pb)||1);else delete pbMap[String(pid)];try{await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("product_per_box_json",JSON.stringify(pbMap));if(rf)await rf();}catch{alert("Gagal update stok");}setBusy("");};
-  const list=(products||[]).map(p=>({...p,_s:stockOf(stockMap,p.id),_pb:parseInt(perBoxMap[String(p.id)])||1})).filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>{const sa=a._s===Infinity?9999:a._s;const sb=b._s===Infinity?9999:b._s;return sa-sb;});
+  const update=async(pid,val)=>{if(busy)return;setBusy(String(pid));const ns={...stockMap};if(val===null||val===""||isNaN(parseInt(val)))delete ns[String(pid)];else ns[String(pid)]=Math.max(0,parseInt(val));try{await dbUS("product_stock_json",JSON.stringify(ns));if(rf)await rf();}catch{alert("Gagal update stok");}setBusy("");};
+  const list=(products||[]).map(p=>({...p,_s:stockOf(stockMap,p.id)})).filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>{const sa=a._s===Infinity?9999:a._s;const sb=b._s===Infinity?9999:b._s;return sa-sb;});
   const out=list.filter(p=>p._s===0).length;
   const low=list.filter(p=>p._s!==Infinity&&p._s>0&&p._s<=5).length;
   const ok=list.filter(p=>p._s===Infinity||p._s>5).length;
   return(<div>
-    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-[11px] text-blue-800 leading-relaxed">📦 <span className="font-semibold">Kelola stok produk</span> — ketik di kotak atau pakai +/−. Untuk produk per box (isi 6), klik row untuk muncul "per unit" agar hitung tepat. Klik ∞ reset unlimited.</div>
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-[11px] text-blue-800 leading-relaxed">📦 <span className="font-semibold">Kelola stok produk (dalam pcs)</span> — ketik langsung di kotak atau pakai +/−. Konversi per varian diatur di Menu. Klik ∞ untuk reset unlimited.</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">✅ Aman</p><p className="text-lg font-bold text-emerald-600">{ok}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">⚠️ Menipis</p><p className="text-lg font-bold text-orange-600">{low}</p></div><div className="bg-white rounded-2xl p-3 text-center border border-stone-100"><p className="text-[10px] text-stone-400">❌ Habis</p><p className="text-lg font-bold text-red-600">{out}</p></div></div>
     <Inp placeholder="🔍 Cari produk..." value={q} onChange={e=>setQ(e.target.value)}/>
-    {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:list.map(p=>{const s=p._s;const pb=p._pb;const cur=stockMap[String(p.id)];const bc=s===0?"border-red-200 bg-red-50/30":s!==Infinity&&s<=5?"border-orange-200 bg-orange-50/30":"border-stone-100 bg-white";const isOpen=expand[p.id];return(
-      <div key={p.id} className={`rounded-2xl border ${bc} ${isOpen?"p-3 mb-2":"p-3 mb-2"}`}>
-        <button onClick={()=>setExpand(e=>({...e,[p.id]:!e[p.id]}))} className="w-full text-left">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{fmt(p.price)}</p></div>
-            <div className="flex items-center gap-1.5">
-              <button onClick={e=>{e.stopPropagation();update(p.id,s===Infinity?0:Math.max(0,s-1));}} disabled={busy===String(p.id)||s===0} className="w-8 h-8 rounded-full bg-stone-100 text-stone-700 text-sm font-bold disabled:opacity-30">−</button>
-              <input key={`inv-${p.id}-${s===Infinity?"inf":s}`} type="number" inputMode="numeric" min="0" defaultValue={s===Infinity?"":s} onBlur={e=>{const t=e.target.value.trim();if(t==="")update(p.id,null);else{const n=parseInt(t);if(!isNaN(n))update(p.id,Math.max(0,n));}}} onKeyDown={e=>{if(e.key==="Enter"){e.target.blur();e.stopPropagation();}}} onClick={e=>e.stopPropagation()} placeholder="∞" disabled={busy===String(p.id)} className={`w-16 text-center font-bold text-sm border rounded-lg py-1 px-1 focus:outline-none focus:ring-2 focus:ring-amber-300 ${s===0?"text-red-600 border-red-200 bg-red-50/50":s===Infinity?"text-stone-400 border-stone-200":s<=5?"text-orange-600 border-orange-200 bg-orange-50/50":"text-emerald-700 border-stone-200"}`}/>
-              <button onClick={e=>{e.stopPropagation();update(p.id,s===Infinity?1:s+1);}} disabled={busy===String(p.id)} className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 text-sm font-bold disabled:opacity-30">+</button>
-              {cur!==undefined&&<button onClick={e=>{e.stopPropagation();update(p.id,null);}} title="Reset ke Unlimited" className="text-[10px] text-stone-400 hover:text-stone-700 ml-1">∞</button>}
-              <span className={`text-xs text-stone-400 ml-1 transition-transform ${isOpen?"rotate-180":""}`}>▾</span>
-            </div>
+    {list.length===0?<p className="text-sm text-stone-400 text-center py-8">Tidak ada produk</p>:list.map(p=>{const s=p._s;const cur=stockMap[String(p.id)];const bc=s===0?"border-red-200 bg-red-50/30":s!==Infinity&&s<=5?"border-orange-200 bg-orange-50/30":"border-stone-100 bg-white";return(
+      <div key={p.id} className={`rounded-2xl border ${bc} p-3 mb-2`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{fmt(p.price)}</p></div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={()=>update(p.id,s===Infinity?0:Math.max(0,s-1))} disabled={busy===String(p.id)||s===0} className="w-8 h-8 rounded-full bg-stone-100 text-stone-700 text-sm font-bold disabled:opacity-30">−</button>
+            <input key={`inv-${p.id}-${s===Infinity?"inf":s}`} type="number" inputMode="numeric" min="0" defaultValue={s===Infinity?"":s} onBlur={e=>{const t=e.target.value.trim();if(t==="")update(p.id,null);else{const n=parseInt(t);if(!isNaN(n))update(p.id,Math.max(0,n));}}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="∞" disabled={busy===String(p.id)} className={`w-16 text-center font-bold text-sm border rounded-lg py-1 px-1 focus:outline-none focus:ring-2 focus:ring-amber-300 ${s===0?"text-red-600 border-red-200 bg-red-50/50":s===Infinity?"text-stone-400 border-stone-200":s<=5?"text-orange-600 border-orange-200 bg-orange-50/50":"text-emerald-700 border-stone-200"}`}/>
+            <button onClick={()=>update(p.id,s===Infinity?1:s+1)} disabled={busy===String(p.id)} className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 text-sm font-bold disabled:opacity-30">+</button>
+            {cur!==undefined&&<button onClick={()=>update(p.id,null)} title="Reset ke Unlimited" className="text-[10px] text-stone-400 hover:text-stone-700 ml-1">∞</button>}
           </div>
-        </button>
-        {isOpen&&<div className="mt-3 pt-3 border-t border-stone-200">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5">
-            <label className="block text-[10px] font-semibold text-emerald-800 mb-2">Isi per unit (pcs/box)</label>
-            <input type="number" inputMode="numeric" min="1" defaultValue={pb} onBlur={e=>{const pb=Math.max(1,parseInt(e.target.value)||1);update(p.id,cur===undefined?null:cur,pb);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="1" className="w-full border border-emerald-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
-            <p className="text-[10px] text-emerald-700 mt-2">Misal: stok 1 (box), isi 6 pcs/box</p>
-          </div>
-        </div>}
+        </div>
       </div>
     );})}
   </div>);
