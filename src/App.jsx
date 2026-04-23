@@ -1063,22 +1063,50 @@ const APembukuan = ({products,orders,settings:st,onRefresh:rf}) => {
 const Admin = ({onLogout}) => {
   const [tab,setTab]=useState("orders");
   const [products,setProducts]=useState([]);const [orders,setOrders]=useState([]);const [allOrders,setAllOrders]=useState([]);const [cd,setCd]=useState([]);const [settings,setSettings]=useState({});const [loading,setLoading]=useState(true);
-  const [prevOrderCount,setPrevOrderCount]=useState(0);const [newCount,setNewCount]=useState(0);
+  const [newCount,setNewCount]=useState(0);
+  const [toasts,setToasts]=useState([]);
+  const prevWaitingRef=useRef(null);
   const notifAudio=useRef(null);
+  const firstLoadRef=useRef(true);
+
+  const playBeep=()=>{try{const a=notifAudio.current;if(!a)return;a.currentTime=0;a.play().catch(()=>{});setTimeout(()=>{try{a.currentTime=0;a.play().catch(()=>{});}catch{}},400);}catch{}};
+  const dismissToast=(id)=>setToasts(t=>t.filter(x=>x.id!==id));
+  const pushToast=(order)=>{const id=`${order.id||order.order_number}_${Date.now()}`;setToasts(t=>[{id,order},...t].slice(0,5));setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),10000);};
 
   const load=async()=>{try{const [p,o,ao,c,s]=await Promise.all([dbP(),dbO(),dbAO(),dbCD(),dbS()]);setProducts(p||[]);const newOrders=o||[];setAllOrders(ao||[]);setCd(c||[]);const sm={};(s||[]).forEach(x=>sm[x.key]=x.value);setSettings(sm);
-    const waitingCount=newOrders.filter(x=>x.status==="waiting").length;
-    if(prevOrderCount>0&&waitingCount>prevOrderCount){setNewCount(waitingCount);try{notifAudio.current?.play();}catch{}}
-    setPrevOrderCount(waitingCount);setOrders(newOrders);
+    const waiting=newOrders.filter(x=>x.status==="waiting");
+    const currentNums=new Set(waiting.map(x=>x.order_number));
+    if(!firstLoadRef.current&&prevWaitingRef.current){
+      const added=waiting.filter(x=>!prevWaitingRef.current.has(x.order_number));
+      if(added.length>0){playBeep();added.forEach(pushToast);setNewCount(n=>n+added.length);}
+    }
+    prevWaitingRef.current=currentNums;
+    firstLoadRef.current=false;
+    setOrders(newOrders);
   }catch(e){console.error(e);}setLoading(false);};
 
-  useEffect(()=>{load();const iv=setInterval(load,30000);return()=>clearInterval(iv);},[]);
+  useEffect(()=>{load();const iv=setInterval(load,15000);return()=>clearInterval(iv);},[]);
 
   const tabs=[{id:"orders",icon:"📋",label:"Pesanan"},{id:"menu",icon:"🍰",label:"Menu"},{id:"pembukuan",icon:"📒",label:"Pembukuan"},{id:"schedule",icon:"🗓️",label:"Jadwal"},{id:"calendar",icon:"📅",label:"Kalender"},{id:"settings",icon:"⚙️",label:"Setting"}];
   const toggle=async ds=>{await dbTD(ds);const c=await dbCD();setCd(c||[]);};
 
   return(<div className="min-h-screen bg-stone-50">
     <audio ref={notifAudio} preload="auto"><source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2LkZeYm5eTjYF0ZVlUX2x5hpGZoKSnpqGblI2BdGhcUlRdanmGkZmgpKempqGblI2BdGhdUVRdanmGkZmgpKempaGblI2BdGhcUlReanyHkpmgoqWmpqKcl4+Ee29kXFhbZXB+ipOaoaSlpaSgm5WNgndsYFdVXGhzhI+Yn6OlpqWhn5qUjIF2a2BYVV1odIOQmJ+jpaalop+blJCFem9kXVpdZ3OBjpifoqWmpqShnpqTi4F2bGJcW19odo=" type="audio/wav"/></audio>
+
+    {toasts.length>0&&<div className="fixed top-4 right-4 z-[60] space-y-2 w-[min(92vw,320px)]">
+      {toasts.map(({id,order})=>{const isHampers=(order.note||"").includes("[HAMPERS");const isCash=(order.note||"").includes("[Cash");const isQris=(order.note||"").includes("[QRIS");return(
+        <div key={id} className="animate-toast-in bg-white border-l-4 border-amber-500 shadow-2xl rounded-2xl p-3.5 flex items-start gap-3" role="alert">
+          <span className="text-2xl flex-shrink-0">{isHampers?"🎁":isCash?"💵":isQris?"📱":"🔔"}</span>
+          <button onClick={()=>{setTab("orders");setNewCount(0);dismissToast(id);}} className="flex-1 min-w-0 text-left">
+            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Pesanan Baru</p>
+            <p className="text-sm font-bold text-stone-800 truncate">{order.order_number}</p>
+            <p className="text-[11px] text-stone-500 truncate">{order.customer_name||"-"} · {fmt(order.total||0)}</p>
+          </button>
+          <button onClick={()=>dismissToast(id)} aria-label="Tutup" className="text-stone-300 hover:text-stone-700 text-sm leading-none flex-shrink-0">✕</button>
+        </div>
+      );})}
+    </div>}
+
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-100 px-4 py-3.5 flex items-center justify-between"><h1 className="font-bold text-stone-800">Admin SJB</h1><button onClick={()=>{logoutAuth();onLogout();}} className="text-xs text-red-400 hover:text-red-600 font-medium transition">Logout</button></header>
     <div className="px-4 py-5 pb-24">{loading?<Spin text="Memuat data..."/>:<>
       {tab==="orders"&&<AOrders orders={orders} onRefresh={load} newCount={newCount}/>}
