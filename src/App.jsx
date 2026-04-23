@@ -857,7 +857,7 @@ const ASchedule = ({products,settings:st,onRefresh:rf}) => {
 };
 
 const APurchases = ({products,settings:st,onRefresh:rf}) => {
-  const blank=()=>({_k:genId(),name:"",qty:"1",price:"",productId:""});
+  const blank=()=>({_k:genId(),name:"",qty:"1",price:"",productId:"",perBox:"1"});
   const [date,setDate]=useState(todayStr());
   const [rows,setRows]=useState([blank()]);
   const [show,setShow]=useState(false);const [busy,setBusy]=useState(false);
@@ -870,16 +870,16 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
   const rmRow=(k)=>setRows(rs=>rs.length<=1?[blank()]:rs.filter(r=>r._k!==k));
   const grandTotal=rows.reduce((s,r)=>s+(Math.max(1,parseInt(r.qty)||1)*(Math.max(0,parseInt(r.price)||0))),0);
   const resetForm=()=>{setDate(todayStr());setRows([blank()]);setShow(false);};
-  const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null};});try{const ns={...stockMap};let stockChanged=false;valid.forEach((r,i)=>{if(r.productId){const cur=stockOf(ns,r.productId);ns[String(r.productId)]=(cur===Infinity?0:cur)+entries[i].qty;stockChanged=true;}});if(stockChanged)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
+  const save=async()=>{if(busy)return;const valid=rows.filter(r=>r.name.trim()&&r.price);if(valid.length===0){alert("Minimal 1 baris dengan Nama & Harga terisi");return;}setBusy(true);const entries=valid.map(r=>{const qty=Math.max(1,parseInt(r.qty)||1);const price=Math.max(0,parseInt(r.price)||0);const perBox=Math.max(1,parseInt(r.perBox)||1);return{id:genId(),date,name:r.name.trim(),qty,price,total:qty*price,productId:r.productId||null,perBox:r.productId?perBox:1,stockAdded:r.productId?qty*perBox:0};});try{const ns={...stockMap};let stockChanged=false;entries.forEach(e=>{if(e.productId&&e.stockAdded){const cur=stockOf(ns,e.productId);ns[String(e.productId)]=(cur===Infinity?0:cur)+e.stockAdded;stockChanged=true;}});if(stockChanged)await dbUS("product_stock_json",JSON.stringify(ns));await dbUS("purchases_json",JSON.stringify([...entries,...purchases]));resetForm();if(rf)await rf();}catch{alert("Gagal simpan pembelian");}setBusy(false);};
   const del=async(id)=>{if(!confirm("Hapus pembelian ini? Stok tidak ikut berkurang."))return;const next=purchases.filter(p=>p.id!==id);try{await dbUS("purchases_json",JSON.stringify(next));if(rf)await rf();}catch{}};
   return(<div>
-    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku (tepung, gula, telur) atau stok jadi. Bisa input banyak barang sekaligus. Pilih "Tambah ke Stok Produk" agar stok naik otomatis.</div>
+    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-[11px] text-orange-800 leading-relaxed">📥 <span className="font-semibold">Catat semua yang kamu beli untuk toko</span> — bahan baku atau stok jadi. Bisa input banyak barang sekaligus. Link ke produk = stok naik otomatis. Kalau beli <span className="font-semibold">per box/kemasan</span>, isi "Isi per Qty" biar stok pcs-nya tepat (misal 1 box = 6 pcs → stok naik 6).</div>
     <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Hari Ini</p><p className="text-sm font-bold text-orange-600">{fmt(todayT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Minggu</p><p className="text-sm font-bold text-orange-600">{fmt(weekT)}</p></div><div className="bg-white rounded-2xl p-3 border border-stone-100"><p className="text-[10px] text-stone-400 mb-0.5">Bulan</p><p className="text-sm font-bold text-orange-600">{fmt(monthT)}</p></div></div>
     {!show?<Btn onClick={()=>setShow(true)} full className="mb-4">+ Catat Pembelian Baru</Btn>:<div className="bg-white rounded-2xl p-4 border border-stone-100 mb-4">
       <p className="text-sm font-bold text-stone-800 mb-3">📥 Pembelian Baru</p>
       <Inp label="Tanggal" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
       <div className="space-y-3 mb-3">
-        {rows.map((r,idx)=>{const rowTotal=(Math.max(1,parseInt(r.qty)||1))*(Math.max(0,parseInt(r.price)||0));return(
+        {rows.map((r,idx)=>{const qtyN=Math.max(1,parseInt(r.qty)||1);const perBoxN=Math.max(1,parseInt(r.perBox)||1);const rowTotal=qtyN*(Math.max(0,parseInt(r.price)||0));const linkedProd=r.productId?products.find(p=>String(p.id)===String(r.productId)):null;const stockAdd=linkedProd?qtyN*perBoxN:0;return(
           <div key={r._k} className="bg-stone-50 border border-stone-200 rounded-2xl p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-stone-500">Barang #{idx+1}</span>
@@ -887,11 +887,16 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
             </div>
             <input value={r.name} onChange={e=>updRow(r._k,"name",e.target.value)} placeholder="Nama barang (tepung, gula, dll)" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300"/>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input type="number" inputMode="numeric" min="1" value={r.qty} onChange={e=>updRow(r._k,"qty",e.target.value)} placeholder="Qty" className="border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/>
-              <input type="number" inputMode="numeric" min="0" value={r.price} onChange={e=>updRow(r._k,"price",e.target.value)} placeholder="Harga satuan (Rp)" className="border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/>
+              <div><label className="block text-[10px] text-stone-400 mb-0.5 ml-1">Qty (box/kemasan)</label><input type="number" inputMode="numeric" min="1" value={r.qty} onChange={e=>updRow(r._k,"qty",e.target.value)} placeholder="Qty" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
+              <div><label className="block text-[10px] text-stone-400 mb-0.5 ml-1">Harga per Qty (Rp)</label><input type="number" inputMode="numeric" min="0" value={r.price} onChange={e=>updRow(r._k,"price",e.target.value)} placeholder="Harga satuan" className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"/></div>
             </div>
-            <select value={r.productId} onChange={e=>updRow(r._k,"productId",e.target.value)} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-1"><option value="">-- Tidak terhubung produk --</option>{products.map(p=>(<option key={p.id} value={p.id}>+ Stok: {p.name}</option>))}</select>
-            {rowTotal>0&&<p className="text-[11px] text-stone-500 mt-1">Subtotal: <span className="font-bold text-amber-800">{fmt(rowTotal)}</span></p>}
+            <select value={r.productId} onChange={e=>updRow(r._k,"productId",e.target.value)} className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white mb-2"><option value="">-- Tidak terhubung produk --</option>{products.map(p=>(<option key={p.id} value={p.id}>+ Stok: {p.name}</option>))}</select>
+            {linkedProd&&<div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 mb-1">
+              <label className="block text-[10px] font-semibold text-emerald-800 mb-1">Isi per Qty <span className="text-emerald-600 font-normal">(berapa pcs per box/kemasan)</span></label>
+              <input type="number" inputMode="numeric" min="1" value={r.perBox} onChange={e=>updRow(r._k,"perBox",e.target.value)} placeholder="1" className="w-full border border-emerald-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+              <p className="text-[10px] text-emerald-700 mt-1.5">➕ Stok <span className="font-bold">{linkedProd.name}</span> akan naik <span className="font-bold">{qtyN} × {perBoxN} = {stockAdd} pcs</span></p>
+            </div>}
+            {rowTotal>0&&<p className="text-[11px] text-stone-500 mt-1">Subtotal belanja: <span className="font-bold text-amber-800">{fmt(rowTotal)}</span></p>}
           </div>
         );})}
       </div>
@@ -899,7 +904,7 @@ const APurchases = ({products,settings:st,onRefresh:rf}) => {
       {grandTotal>0&&<div className="flex justify-between items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3"><span className="text-sm font-semibold text-stone-700">Grand Total</span><span className="text-lg font-bold text-amber-800">{fmt(grandTotal)}</span></div>}
       <div className="flex gap-2"><Btn onClick={save} full disabled={busy}>{busy?"Menyimpan...":`💾 Simpan ${rows.filter(r=>r.name.trim()&&r.price).length||""} Barang`}</Btn><Btn onClick={resetForm} variant="ghost">Batal</Btn></div>
     </div>}
-    {purchases.length===0?<div className="text-center py-10 text-stone-300"><p className="text-4xl mb-2">📥</p><p className="text-sm text-stone-400">Belum ada pembelian</p></div>:purchases.slice(0,50).map(p=>(<div key={p.id} className="bg-white rounded-2xl p-4 mb-2 border border-stone-100"><div className="flex justify-between items-start gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{p.date} · {p.qty}× @ {fmt(p.price)}{p.productId&&<span className="ml-2 text-emerald-600">+ stok</span>}</p></div><div className="flex items-center gap-2"><p className="font-bold text-orange-600 text-sm whitespace-nowrap">{fmt(p.total)}</p><button onClick={()=>del(p.id)} className="text-red-400 hover:bg-red-50 w-7 h-7 rounded-lg">🗑️</button></div></div></div>))}
+    {purchases.length===0?<div className="text-center py-10 text-stone-300"><p className="text-4xl mb-2">📥</p><p className="text-sm text-stone-400">Belum ada pembelian</p></div>:purchases.slice(0,50).map(p=>{const added=p.stockAdded!=null?p.stockAdded:(p.productId?p.qty:0);const pb=p.perBox||1;return(<div key={p.id} className="bg-white rounded-2xl p-4 mb-2 border border-stone-100"><div className="flex justify-between items-start gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm text-stone-800 truncate">{p.name}</p><p className="text-[11px] text-stone-400">{p.date} · {p.qty}× @ {fmt(p.price)}{p.productId&&<span className="ml-2 text-emerald-600 font-semibold">+{added} stok{pb>1?` (isi ${pb})`:""}</span>}</p></div><div className="flex items-center gap-2"><p className="font-bold text-orange-600 text-sm whitespace-nowrap">{fmt(p.total)}</p><button onClick={()=>del(p.id)} className="text-red-400 hover:bg-red-50 w-7 h-7 rounded-lg">🗑️</button></div></div></div>);})}
   </div>);
 };
 
