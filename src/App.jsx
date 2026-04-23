@@ -415,10 +415,10 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   const sub=co.subtotal||cart.reduce((s,i)=>s+i.unitPrice*i.qty,0);
   const disc=co.discount||0,tot=co.total!=null?co.total:Math.max(0,sub-disc),pd=new Date(co.date+"T00:00:00"),oid=co.orderNum;
   const timeStr=co.time?` pukul ${co.time}`:"";
-  const voucherLine=co.voucher?`%0AVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
-  const payLine=payMethod==="qris"?`%0A%0AMetode Bayar: QRIS (Menunggu konfirmasi admin)`:payMethod==="bank"?`%0A%0AMetode Bayar: Transfer Bank`:`%0A%0AMetode Bayar: Bayar di Toko (Cash saat pickup)`;
-  const waText=`Halo, saya ingin order:%0A%0ANo Order: ${oid}%0ANama: ${co.name}%0A%0AProduk:%0A${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`%0A  Catatan: ${i.note}`;return l;}).join("%0A")}%0A%0ATanggal Ambil: ${dfmt(pd)}${timeStr}%0ASubtotal: ${fmt(sub)}${voucherLine}%0ATotal: ${fmt(tot)}${payLine}%0A%0AStatus: Menunggu Verifikasi`;
-  const waLink=`https://wa.me/${WA}?text=${waText}`;
+  const voucherLine=co.voucher?`\nVoucher: ${co.voucher.code} (−${fmt(disc)})`:"";
+  const payLine=payMethod==="qris"?`\n\nMetode Bayar: QRIS (Menunggu konfirmasi admin)`:payMethod==="bank"?`\n\nMetode Bayar: Transfer Bank`:`\n\nMetode Bayar: Bayar di Toko (Cash saat pickup)`;
+  const waText=`Halo, saya ingin order:\n\nNo Order: ${oid}\nNama: ${co.name}\n\nProduk:\n${cart.map(i=>{let l=`- ${i.name} x${i.qty}`;if(i.size)l+=` (${i.size})`;if(i.flavor)l+=` — ${i.flavor}`;if(i.note)l+=`\n  Catatan: ${i.note}`;return l;}).join("\n")}\n\nTanggal Ambil: ${dfmt(pd)}${timeStr}\nSubtotal: ${fmt(sub)}${voucherLine}\nTotal: ${fmt(tot)}${payLine}\n\nStatus: Menunggu Verifikasi`;
+  const waLink=`https://wa.me/${WA}?text=${encodeURIComponent(waText)}`;
   const payTag=payMethod==="qris"?"[QRIS — Menunggu konfirmasi]":payMethod==="bank"?"[Transfer Bank]":"[Cash — Bayar di Toko]";
   const notes=[cart.map(i=>i.note).filter(Boolean).join("; "),co.voucher?`[Voucher: ${co.voucher.code} −${fmt(disc)}]`:"",payTag].filter(Boolean).join(" ");
   const go=async()=>{
