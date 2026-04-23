@@ -107,6 +107,27 @@ const Btn = ({children,onClick,variant="primary",full,disabled,className=""}) =>
   return <button onClick={onClick} disabled={disabled} className={`${b} ${sz} ${vr[variant]} ${disabled?"opacity-50 cursor-not-allowed":""} ${className}`}>{children}</button>;
 };
 const Inp = ({label,required,...p}) => (<div className="mb-4">{label&&<label className="block text-sm font-medium text-stone-600 mb-1.5">{label}{required&&<span className="text-red-400 ml-0.5">*</span>}</label>}<input {...p} className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent focus:bg-white transition"/></div>);
+
+const Splash = ({show}) => {
+  const [exit,setExit]=useState(false);
+  useEffect(()=>{if(!show&&!exit)setExit(true);},[show,exit]);
+  if(!show&&exit)return null;
+  return(
+    <div className={`fixed inset-0 z-[999] bg-gradient-to-br from-amber-50 via-white to-orange-50 flex items-center justify-center transition-opacity duration-500 ${show?"opacity-100":"opacity-0 pointer-events-none"}`}>
+      <div className={`text-center ${show?"animate-splash-in":exit?"animate-splash-out":""}`}>
+        <div className="mb-6 text-6xl animate-bounce">🍰</div>
+        <h1 className="text-4xl font-bold text-amber-900 mb-2 tracking-tight">Sinar Jaya</h1>
+        <h2 className="text-2xl text-amber-700 mb-8 font-light">Bakery</h2>
+        <div className="flex justify-center gap-1.5">
+          <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-bounce" style={{animationDelay:"0s"}}/>
+          <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-bounce" style={{animationDelay:"0.2s"}}/>
+          <div className="w-2.5 h-2.5 bg-amber-600 rounded-full animate-bounce" style={{animationDelay:"0.4s"}}/>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const IPT_CLS="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition";
 const Field = ({label,hint,children}) => (<div className="mb-3"><label className="block text-xs font-semibold text-stone-500 mb-1.5">{label}</label>{children}{hint&&<p className="text-[11px] text-stone-400 mt-1">{hint}</p>}</div>);
 const DEFAULT_HAMPERS=[
@@ -1122,6 +1143,7 @@ const Admin = ({onLogout}) => {
       {tab==="settings"&&<ASettings settings={settings} onRefresh={load}/>}
     </>}</div>
     <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-stone-100 flex z-30">{tabs.map(t=><button key={t.id} onClick={()=>{setTab(t.id);if(t.id==="orders")setNewCount(0);}} className={`flex-1 py-3 flex flex-col items-center gap-1 text-[11px] transition relative ${tab===t.id?"text-amber-800 font-bold":"text-stone-400"}`}><span className="text-lg">{t.icon}</span>{t.label}{t.id==="orders"&&newCount>0&&<span className="absolute top-1 right-1/4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center" style={{width:18,height:18}}>{newCount}</span>}</button>)}</nav>
+    <Splash show={loading}/>
   </div>);
 };
 
@@ -1165,5 +1187,6 @@ export default function App(){
     {pg==="co"&&<Checkout cart={cart} settings={st} orders={orders} closedDates={cd} onSubmit={x=>{setCo(x);setPg("prev")}} onBack={()=>setPg("cart")} onHome={goH}/>}
     {pg==="prev"&&co&&<Preview cart={cart} checkout={co} settings={st} stockMap={stockMap} onStockChange={refreshStock} onSend={()=>setOk(true)} onBack={()=>setPg("co")} onHome={goH}/>}
     {pg==="home"&&<div className="bg-stone-100 py-8 px-5"><div className="flex items-center justify-between"><button onClick={openAdmin} className="text-stone-300 hover:text-stone-500 transition p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><p className="text-[11px] text-stone-400">© 2026 Sinar Jaya Bakery</p></div></div>}
+    <Splash show={ld}/>
   </>);
 }
