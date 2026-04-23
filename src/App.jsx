@@ -16,11 +16,13 @@ const login = async (e,p) => { const r = await fetch(`${SB_URL}/auth/v1/token?gr
 const logoutAuth = () => { tk=null; };
 const H = (x={}) => ({ headers:{ "Prefer":"return=representation", ...x } });
 
-const dbP = () => sb("/rest/v1/products?is_active=eq.true&order=id.asc", H());
-const dbO = () => sb("/rest/v1/orders?status=neq.archived&order=id.desc", H());
-const dbAO = () => sb("/rest/v1/orders?order=id.desc", H());
-const dbCD = () => sb("/rest/v1/closed_dates?order=date.asc", H());
-const dbS = () => sb("/rest/v1/settings?order=id.asc", H());
+const P_COLS = "id,name,price,category,subcategory,label,description,color,image_url,flavors,sizes,discount,max_qty,is_sold_out,is_active";
+const O_COLS = "id,order_number,customer_name,customer_phone,total,status,pickup_date,order_date,note,items,reference_image,bank_screenshot,payment_method,updated_at";
+const dbP = () => sb(`/rest/v1/products?is_active=eq.true&select=${P_COLS}&order=id.asc`, H());
+const dbO = () => sb(`/rest/v1/orders?status=neq.archived&select=${O_COLS}&order=id.desc&limit=200`, H());
+const dbAO = () => sb(`/rest/v1/orders?select=${O_COLS}&order=id.desc&limit=500`, H());
+const dbCD = () => sb("/rest/v1/closed_dates?select=date&order=date.asc", H());
+const dbS = () => sb("/rest/v1/settings?select=key,value&order=id.asc", H());
 const dbOByPhone = (ph) => sb(`/rest/v1/orders?customer_phone=eq.${encodeURIComponent(ph)}&select=id,order_number,order_date,status,customer_phone,total&order=id.desc`, H());
 const dbIO = (o) => sb("/rest/v1/orders", { method:"POST", body:o, ...H() });
 const dbUO = (id,d) => sb(`/rest/v1/orders?id=eq.${id}`, { method:"PATCH", body:d, ...H() });
@@ -36,6 +38,7 @@ const dbUS = async (k,v) => {
   return sb("/rest/v1/settings", { method:"POST", body:{key:k,value:v}, ...H() });
 };
 const dbGN = () => sb("/rest/v1/rpc/generate_order_number", { method:"POST", body:{} });
+const dbPlaceOrder = (payload) => sb("/rest/v1/rpc/place_order", { method:"POST", body:payload, ...H() });
 
 const fmt = (n) => "Rp "+n.toLocaleString("id-ID");
 const dfmt = (d) => { const D=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"],M=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"]; return `${D[d.getDay()]}, ${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()}`; };
@@ -434,17 +437,36 @@ const Preview = ({cart,checkout:co,settings:st,stockMap,onStockChange,onSend,onB
     const required={};cart.forEach(i=>{const u=parseInt(i.qtyUnit)||1;required[String(i.id)]=(required[String(i.id)]||0)+i.qty*u;});
     for(const pid in required){const avail=stockOf(stockMap||{},pid);if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);return;}}
     setSending(true);
+    const rpcItems=cart.map(i=>({product_id:i.id,product_name:i.name,qty:i.qty,qty_unit:parseInt(i.qtyUnit)||1,variant:i.size||null,flavor:i.flavor||null,unit_price:i.unitPrice,note:i.note||null}));
+    const rpcPayload={p_order_number:oid,p_customer_name:co.name,p_customer_phone:co.phone,p_pickup_date:co.date,p_total:tot,p_note:notes,p_payment_method:payMethod,p_bank_screenshot:bankScreenshot||null,p_reference_image:co.referenceImage||null,p_items:rpcItems};
     try{
-      let freshStock=stockMap||{};
-      try{const s=await sb("/rest/v1/settings?key=eq.product_stock_json&select=value",H());if(Array.isArray(s)&&s[0]?.value)freshStock=readStockMap(s[0].value);}catch(e){console.error("Fresh stock fetch failed:",e);}
-      for(const pid in required){const avail=freshStock[String(pid)]===undefined?Infinity:freshStock[String(pid)];if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok berubah! Tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);setSending(false);if(onStockChange)await onStockChange();return;}}
-      const newStock={...freshStock};let changed=false;
-      Object.keys(required).forEach(pid=>{const cur=newStock[pid];if(cur!==undefined&&cur!==null){newStock[pid]=Math.max(0,cur-required[pid]);changed=true;}});
-      if(changed){try{await dbUS("product_stock_json",JSON.stringify(newStock));}catch(e){console.error("Stock update failed:",e);alert("❌ Gagal update stok. Coba lagi.");setSending(false);return;}}
-      await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,qtyUnit:parseInt(i.qtyUnit)||1,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||"",bank_screenshot:bankScreenshot||""});
+      await dbPlaceOrder(rpcPayload);
       if(onStockChange)await onStockChange();
       window.open(waLink,"_blank");onSend();
-    }catch(e){console.error("Order save failed:",e);alert("Gagal menyimpan order: "+(e?.message||"Unknown error"));}
+    }catch(e){
+      const msg=String(e?.message||"");
+      if(msg.includes("INSUFFICIENT_STOCK")){
+        const m=msg.match(/INSUFFICIENT_STOCK:([^:"]+):(\d+):(\d+)/);
+        if(m)alert(`❌ Stok berubah! Tidak cukup untuk ${m[1]}.\nButuh: ${m[2]} pcs\nTersedia: ${m[3]} pcs`);
+        else alert("❌ Stok tidak mencukupi. Silakan refresh halaman.");
+        if(onStockChange)await onStockChange();
+      }else if(msg.includes("EMPTY_CART")){alert("❌ Keranjang kosong");}
+      else if(msg.includes("PRODUCT_NOT_FOUND")){alert("❌ Produk tidak ditemukan. Silakan refresh.");}
+      else if(/function .*place_order.* does not exist|Could not find the function|PGRST202/i.test(msg)){
+        console.warn("RPC place_order not deployed yet — falling back to legacy flow");
+        try{
+          let freshStock=stockMap||{};
+          try{const s=await sb("/rest/v1/settings?key=eq.product_stock_json&select=value",H());if(Array.isArray(s)&&s[0]?.value)freshStock=readStockMap(s[0].value);}catch(err){console.error("Fresh stock fetch failed:",err);}
+          for(const pid in required){const avail=freshStock[String(pid)]===undefined?Infinity:freshStock[String(pid)];if(avail!==Infinity&&avail<required[pid]){const it=cart.find(i=>String(i.id)===pid);alert(`❌ Stok berubah! Tidak cukup untuk ${it?.name||"produk"}.\nButuh: ${required[pid]} pcs\nTersedia: ${avail} pcs`);setSending(false);if(onStockChange)await onStockChange();return;}}
+          const newStock={...freshStock};let changed=false;
+          Object.keys(required).forEach(pid=>{const cur=newStock[pid];if(cur!==undefined&&cur!==null){newStock[pid]=Math.max(0,cur-required[pid]);changed=true;}});
+          if(changed)await dbUS("product_stock_json",JSON.stringify(newStock));
+          await dbIO({order_number:oid,customer_name:co.name,customer_phone:co.phone,items:cart.map(i=>({name:i.name,size:i.size,flavor:i.flavor,qty:i.qty,qtyUnit:parseInt(i.qtyUnit)||1,unitPrice:i.unitPrice})),total:tot,note:notes,pickup_date:co.date,status:"waiting",reference_image:co.referenceImage||"",bank_screenshot:bankScreenshot||""});
+          if(onStockChange)await onStockChange();
+          window.open(waLink,"_blank");onSend();
+        }catch(err2){console.error("Legacy fallback failed:",err2);alert("Gagal menyimpan order: "+(err2?.message||""));}
+      }else{console.error("Order save failed:",e);alert("Gagal menyimpan order: "+msg);}
+    }
     setSending(false);
   };
 
