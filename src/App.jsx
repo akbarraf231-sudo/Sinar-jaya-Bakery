@@ -443,15 +443,19 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
   };
 
   const copyAmount=()=>{try{navigator.clipboard?.writeText(String(tot));}catch{}};
+  const calcStockReq=(item)=>{const u=parseInt(item.qtyUnit)||1;return item.qty*u;};
+  let stockValid=true,stockIssues=[];
+  cart.forEach(it=>{const req=calcStockReq(it);const avail=stockOf(stockMap||{},it.id);if(avail!==Infinity&&avail<req){stockValid=false;stockIssues.push(it.name);}});
 
   return(<Shell title="Preview Order" onBack={onBack} onHome={onHome}><div className="px-5 py-5">
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-5"><div className="text-center mb-5"><p className="text-[11px] text-stone-400 uppercase tracking-wider mb-1">No. Order</p><p className="text-xl font-bold text-amber-800">{oid}</p></div>
-      <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>(<div key={it.key} className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div>))}</div>
+      <div className="border-t border-dashed border-stone-200 pt-4 mb-4 space-y-3">{cart.map(it=>{const req=calcStockReq(it);const avail=stockOf(stockMap||{},it.id);const ok=avail===Infinity||avail>=req;return(<div key={it.key}><div className="flex justify-between items-start"><div className="flex-1"><p className="font-semibold text-stone-800 text-sm">{it.name} <span className="text-stone-400 font-normal">×{it.qty}</span></p>{it.size&&<p className="text-[11px] text-stone-400">{it.size}</p>}{it.flavor&&<p className="text-[11px] text-stone-400">{it.flavor}</p>}{it.note&&<p className="text-[11px] text-stone-400">📝 {it.note}</p>}</div><p className="font-semibold text-stone-700 text-sm">{fmt(it.unitPrice*it.qty)}</p></div><p className={`text-[10px] mt-1.5 ${ok?"text-emerald-600":"text-red-600"}`}>{ok?"✅":"❌"} Kebutuhan: {req} pcs {avail===Infinity?"":"(Tersedia: "+avail+" pcs)"}</p></div>);})}</div>
       <div className="border-t border-stone-200 pt-4 space-y-1.5 text-sm mb-5">
         <div className="flex justify-between text-stone-600"><span>Subtotal</span><span>{fmt(sub)}</span></div>
         {disc>0&&<div className="flex justify-between text-emerald-600"><span>🎟️ {co.voucher?.code}</span><span>−{fmt(disc)}</span></div>}
         <div className="flex justify-between pt-2 border-t border-stone-100"><span className="font-semibold text-stone-600">Total</span><span className="text-2xl font-bold text-amber-800">{fmt(tot)}</span></div>
       </div>
+      {!stockValid&&<div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-[11px] text-red-800 mb-4"><p className="font-bold mb-1">❌ Stok Tidak Mencukupi</p><p>Produk: {stockIssues.join(", ")}</p></div>}
       <div className="bg-stone-50 rounded-2xl p-4 text-sm text-stone-600 space-y-2"><p>👤 {co.name}</p><p>📱 {co.phone}</p><p>📅 {dfmt(pd)}{co.time&&` · 🕐 ${co.time}`}</p></div></div>
 
     <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-5 mb-5">
@@ -500,7 +504,7 @@ const Preview = ({cart,checkout:co,settings:st,onSend,onBack,onHome}) => {
       </div>}
     </div>
 
-    <Btn onClick={go} full variant="whatsapp" disabled={sending}>{sending?"Mengirim...":payMethod==="qris"?"✅ Saya Sudah Bayar (QRIS) → Kirim ke WA":"📲 Kirim ke WhatsApp"}</Btn>
+    <Btn onClick={go} full variant="whatsapp" disabled={sending||!stockValid}>{sending?"Mengirim...":(stockValid?(payMethod==="qris"?"✅ Saya Sudah Bayar (QRIS) → Kirim ke WA":"📲 Kirim ke WhatsApp"):"❌ Stok tidak mencukupi")}</Btn>
     <p className="text-xs text-center text-stone-400 mt-4">Jika WhatsApp tidak terbuka, <a href={waLink} target="_blank" rel="noreferrer" className="text-amber-700 underline">klik di sini</a></p></div></Shell>);
 };
 
